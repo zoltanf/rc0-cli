@@ -1,0 +1,134 @@
+[project]
+name = "rc0-cli"
+version = "0.1.0"
+description = "Command line for RcodeZero DNS."
+readme = "README.md"
+requires-python = ">=3.14"
+license = { text = "MIT" }
+authors = [{ name = "Zoltán Fekete" }]
+keywords = ["dns", "rcodezero", "cli", "anycast", "dnssec"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Internet :: Name Service (DNS)",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "typer>=0.15",
+    "httpx>=0.28",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "rich>=13.9",
+    "keyring>=25.0",
+    "pyyaml>=6.0.2",
+    "tomli-w>=1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/zoltanf/rc0-cli"
+Issues = "https://github.com/zoltanf/rc0-cli/issues"
+Source = "https://github.com/zoltanf/rc0-cli"
+Changelog = "https://github.com/zoltanf/rc0-cli/blob/main/CHANGELOG.md"
+
+[project.scripts]
+rc0 = "rc0.app:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/rc0"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/rc0/topics" = "rc0/topics"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.7",
+    "mypy>=1.13",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "respx>=0.22",
+    "pytest-snapshot>=0.9",
+    "types-pyyaml>=6.0",
+]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "UP",   # pyupgrade
+    "SIM",  # flake8-simplify
+    "RUF",  # ruff-specific
+    "S",    # flake8-bandit (security)
+    "C4",   # flake8-comprehensions
+    "PIE",  # flake8-pie
+    "PTH",  # flake8-use-pathlib
+    "TCH",  # flake8-type-checking
+]
+ignore = [
+    "S101",  # allow `assert` in tests
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S105", "S106", "PTH"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+warn_unreachable = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+pretty = true
+files = ["src/rc0"]
+
+[[tool.mypy.overrides]]
+module = ["keyring.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = [
+    "-ra",
+    "--strict-config",
+    "--strict-markers",
+    "--cov=rc0",
+    "--cov-branch",
+    "--cov-report=term-missing",
+]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = [
+    "e2e: tests that hit the real RcodeZero API (gated by RC0_E2E=1)",
+]
+
+[tool.coverage.run]
+source = ["src/rc0"]
+branch = true
+
+[tool.coverage.report]
+fail_under = 0
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]

@@ -1,0 +1,225 @@
+"""Typer root app: global flags, shared state, subcommand wiring.
+
+Follows mission plan §6 for global flag names and precedence rules.
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import platform
+import sys
+from pathlib import Path
+from typing import Annotated
+
+import typer
+
+import rc0
+from rc0.app_state import AppState
+from rc0.client.errors import ConfirmationDeclined, Rc0Error
+from rc0.commands import auth as auth_cmd
+from rc0.commands import config as config_cmd
+from rc0.commands import help as help_cmd
+from rc0.config import load_profile
+from rc0.output import OutputFormat, render
+
+app = typer.Typer(
+    name="rc0",
+    help="The command line for RcodeZero DNS.",
+    no_args_is_help=True,
+    add_completion=True,
+    rich_markup_mode="rich",
+)
+
+app.add_typer(auth_cmd.app, name="auth", help="Authenticate with the RcodeZero API.")
+app.add_typer(config_cmd.app, name="config", help="Read and write rc0 configuration.")
+app.add_typer(help_cmd.app, name="help", help="Long-form topic documentation.")
+
+
+OutputOption = Annotated[
+    OutputFormat | None,
+    typer.Option(
+        "--output",
+        "-o",
+        help="Output format.",
+        envvar="RC0_OUTPUT",
+        case_sensitive=False,
+    ),
+]
+ProfileOption = Annotated[
+    str,
+    typer.Option("--profile", help="Named config profile to use.", envvar="RC0_PROFILE"),
+]
+TokenOption = Annotated[
+    str | None,
+    typer.Option("--token", help="API bearer token.", envvar="RC0_API_TOKEN"),
+]
+ApiUrlOption = Annotated[
+    str | None,
+    typer.Option("--api-url", help="Base URL of the API.", envvar="RC0_API_URL"),
+]
+DryRunOption = Annotated[
+    bool,
+    typer.Option("--dry-run", help="Do not mutate; print intended request.", envvar="RC0_DRY_RUN"),
+]
+YesOption = Annotated[
+    bool,
+    typer.Option("--yes", "-y", help="Skip confirmation prompts.", envvar="RC0_YES"),
+]
+NoColorOption = Annotated[
+    bool,
+    typer.Option("--no-color", help="Disable ANSI colors.", envvar="NO_COLOR"),
+]
+QuietOption = Annotated[
+    bool,
+    typer.Option("--quiet", "-q", help="Suppress non-essential output."),
+]
+VerboseOption = Annotated[
+    int,
+    typer.Option(
+        "--verbose",
+        "-v",
+        count=True,
+        help="Increase log verbosity.",
+        envvar="RC0_VERBOSE",
+    ),
+]
+LogFileOption = Annotated[
+    Path | None,
+    typer.Option("--log-file", help="Write JSON-lines logs to this path.", envvar="RC0_LOG_FILE"),
+]
+TimeoutOption = Annotated[
+    float | None,
+    typer.Option("--timeout", help="HTTP timeout in seconds.", envvar="RC0_TIMEOUT"),
+]
+RetriesOption = Annotated[
+    int | None,
+    typer.Option("--retries", help="Retry count on idempotent 5xx/timeouts.", envvar="RC0_RETRIES"),
+]
+ConfigOption = Annotated[
+    Path | None,
+    typer.Option("--config", help="Explicit path to the config file.", envvar="RC0_CONFIG"),
+]
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(
+            f"rc0 {rc0.__version__} "
+            f"(python {platform.python_version()}, {platform.system()} {platform.machine()})",
+        )
+        raise typer.Exit(code=0)
+
+
+VersionOption = Annotated[
+    bool,
+    typer.Option(
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="Print version and exit.",
+    ),
+]
+
+
+@app.callback()
+def root(
+    ctx: typer.Context,
+    profile: ProfileOption = "default",
+    token: TokenOption = None,
+    api_url: ApiUrlOption = None,
+    output: OutputOption = None,
+    timeout: TimeoutOption = None,
+    retries: RetriesOption = None,
+    dry_run: DryRunOption = False,
+    yes: YesOption = False,
+    no_color: NoColorOption = False,
+    quiet: QuietOption = False,
+    verbose: VerboseOption = 0,
+    log_file: LogFileOption = None,
+    config: ConfigOption = None,
+    version: VersionOption = False,
+) -> None:
+    """Populate :class:`AppState` on the Typer context for subcommands."""
+    _configure_logging(verbose=verbose, log_file=log_file)
+    profile_cfg = load_profile(profile, path=_config_path_from_env())
+    ctx.obj = AppState(
+        profile_name=profile,
+        profile=profile_cfg,
+        token=token,
+        api_url=api_url,
+        output=output,
+        timeout=timeout,
+        retries=retries,
+        dry_run=dry_run,
+        yes=yes,
+        no_color=no_color or _no_color_env(),
+        quiet=quiet,
+        verbose=verbose,
+        log_file=log_file,
+    )
+
+
+@app.command("version")
+def version_cmd(ctx: typer.Context) -> None:
+    """Print version, Python, and platform."""
+    state: AppState = ctx.obj
+    payload = {
+        "version": rc0.__version__,
+        "python": platform.python_version(),
+        "platform": f"{platform.system()} {platform.release()} {platform.machine()}",
+    }
+    typer.echo(render(payload, fmt=state.effective_output))
+
+
+# ----------------------------------------------------------- internal helpers
+
+
+def _configure_logging(*, verbose: int, log_file: Path | None) -> None:
+    level = logging.WARNING
+    if verbose == 1:
+        level = logging.INFO
+    elif verbose >= 2:
+        level = logging.DEBUG
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+    for handler in list(root_logger.handlers):
+        root_logger.removeHandler(handler)
+    stderr_handler = logging.StreamHandler(stream=sys.stderr)
+    stderr_handler.setFormatter(logging.Formatter("%(levelname)s %(name)s %(message)s"))
+    root_logger.addHandler(stderr_handler)
+    if log_file is not None:
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.FileHandler(log_file, encoding="utf-8")
+        file_handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"),
+        )
+        root_logger.addHandler(file_handler)
+
+
+def _config_path_from_env() -> Path | None:
+    raw = os.environ.get("RC0_CONFIG")
+    return Path(raw).expanduser() if raw else None
+
+
+def _no_color_env() -> bool:
+    return bool(os.environ.get("NO_COLOR"))
+
+
+# ---------------------------------------------------------------- entrypoint
+
+
+def main() -> None:
+    """CLI entry point registered in ``pyproject.toml`` as ``rc0``."""
+    try:
+        app()
+    except ConfirmationDeclined as exc:
+        typer.echo(f"error: {exc}", err=True)
+        raise typer.Exit(code=exc.exit_code) from exc
+    except Rc0Error as exc:
+        typer.echo(f"error: {exc.message}", err=True)
+        if exc.hint:
+            typer.echo(f"hint:  {exc.hint}", err=True)
+        raise typer.Exit(code=exc.exit_code) from exc
+    except KeyboardInterrupt:
+        raise typer.Exit(code=130) from None
