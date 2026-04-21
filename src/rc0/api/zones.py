@@ -18,12 +18,12 @@ def list_zones(
     *,
     page: int | None = None,
     page_size: int | None = None,
-    all: bool = False,
+    fetch_all: bool = False,
     filters: Mapping[str, Any] | None = None,
 ) -> list[Zone]:
-    """Return zones. With ``all=True`` iterate every page."""
+    """Return zones. With ``fetch_all=True`` iterate every page."""
     effective_page_size = page_size or 50
-    if all:
+    if fetch_all:
         return [
             Zone.model_validate(row)
             for row in iter_all(

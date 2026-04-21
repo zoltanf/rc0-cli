@@ -9,7 +9,7 @@ import typer
 from rc0 import auth as auth_core
 from rc0.api import zones as zones_api
 from rc0.app_state import AppState  # noqa: TC001
-from rc0.client.errors import AuthError
+from rc0.client.errors import AuthError, ValidationError
 from rc0.client.http import Client
 from rc0.output import render
 
@@ -21,9 +21,14 @@ app = typer.Typer(
 
 
 ZoneArg = Annotated[str, typer.Argument(help="Fully-qualified zone apex, e.g. example.com.")]
-PageOpt = Annotated[int | None, typer.Option("--page", help="1-indexed page number.")]
-PageSizeOpt = Annotated[int | None, typer.Option("--page-size", help="Rows per page (default 50).")]
-AllOpt = Annotated[bool, typer.Option("--all", help="Auto-paginate every row.")]
+PageOpt = Annotated[
+    int | None,
+    typer.Option("--page", min=1, help="1-indexed page number (incompatible with --all)."),
+]
+PageSizeOpt = Annotated[
+    int | None,
+    typer.Option("--page-size", min=1, max=1000, help="Rows per page (default 50)."),
+]
 
 
 def _client(state: AppState) -> Client:
@@ -49,18 +54,28 @@ def list_cmd(
     ctx: typer.Context,
     page: PageOpt = None,
     page_size: PageSizeOpt = None,
-    all: AllOpt = False,
+    fetch_all: Annotated[bool, typer.Option("--all", help="Auto-paginate every row.")] = False,
 ) -> None:
     """List zones on the account. API: GET /api/v2/zones"""
     state: AppState = ctx.obj
+    if fetch_all and page is not None:
+        raise ValidationError(
+            "--page cannot be combined with --all.",
+            hint="Use --all to iterate every page, or --page/--page-size to select one page.",
+        )
     with _client(state) as client:
-        zones = zones_api.list_zones(client, page=page, page_size=page_size, all=all)
+        zones = zones_api.list_zones(
+            client,
+            page=page,
+            page_size=page_size,
+            fetch_all=fetch_all,
+        )
     payload = [z.model_dump(exclude_none=True) for z in zones]
     typer.echo(
         render(
             payload,
             fmt=state.effective_output,
-            columns=["domain", "type", "dnssec"],
+            columns=["domain", "type", "serial", "dnssec", "last_check"],
         ),
     )
 
