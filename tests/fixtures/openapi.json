@@ -1,0 +1,6051 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "RcodeZero DNS - REST API",
+    "description": "This is Version 2 of the Rcode0 API. Version 1 (except the ACME calls) is deprecated and will not receive new features anymore\n\nGet the latest specification file [here](/openapi/rcode0api-latest.json)\n\nPlease also read our workflow [documentation](https://www.rcodezero.at/en/support/documentation/workflow) and our [FAQs](https://www.rcodezero.at/en/support/faq)\n\n### Changelog\n| Version | Date | Author | Changes |\n| --------- | :------------- | :------: | -------------- |\n| 2.0 | 2020-05-13 | Michael Braunoeder | Initial Release v2.<br><br>Changes: <ul><li/>`POST /api/v2/zones`: Return assigned NSSet in response<li>New call \"disable zone\" (and return zone state on \"get zone details\" call)<li>New query parameter \"ignoresafetyperiod\" for \"sign zone\" call to get DNSKEY and DS record immediately in the response<li>New query parameter \"dnssec\" for \"add zone\" call to sign a newly added zone immediately and return the DNSKEY and DS record in the response </ul>|\n| 2.1 | 2020-06-08 | Michael Braunoeder | Changes: <ul><li>New call: `/api/v2/zones/{zone}/status` - check if a zone is disabled or not </li><li>New call: `/api/v2/reports/domainlist` - get an unpaginated list of configured domains</li></ul> |\n| 2.2 | 2021-09-13 | Michael Braunoeder | Changes: <ul><li>Added missing attribute 'created' to call: `GET /api/v2/zones/{zone}`</li></ul> |\n| 2.3 | 2021-09-14 | Michael Braunoeder | Changes: <ul><li>`GET /api/v2/zones`: <ul><li>new parameters - filter[...] and orderby[...]</li><li>Response returns problematic_domains flag</li></ul></li><li>/api/v2/reports/domainlist: return serial in response</li><li>Return status of KSK in zone details</li></ul>|\n| 2.4 | 2022-11-02 | Michael Braunoeder | Changes: <ul><li>`GET /api/v2/zones/`: new parameters - orderby[serial]</li></ul>|\n| 2.5 | 2023-05-02 | Michael Braunoeder | Changes: <ul><li>add support for CDS/CDNSKEY</li><li>add `serial_auto_increment` option to zones</li><li>add support for incoming TSIG-keys (+cleanup TSIG-interface)</li><li>New Call: `PUT /api/v2/zones/{zone}/rrsets`: Replace RRSets for zone</li><li>`/api/v2/zones/{zone}/unsign`: add `force` parameter</li><li>Limit `PATCH /api/v2/zones/{zone}/rrsets` to max 1000 rrsets per request</li><li>New call: `GET messages/list`: get a list of messages in the message queue</ul>Deprecated<ul><li>`/api/v2/zones/{zone}/stats/magnitude`</li><li>`/api/v2/zones/{zone}/stats/qnames`</li><li>`/api/v2/zones/{zone}/stats/nxdomains`</li><li>`/api/v2/stats/topqnames`</li><li>`/api/v2/stats/topnxdomains`</li><li>`/api/v2/stats/topmagnitude`</li><li>`/api/v2/tsig/out`</li><li>`/api/v2/tsig/out/{keyname}`</li><li>`/api/v2/settings/tsigout`</li></ul>|\n| 2.6 | 2023-08-31 | Michael Braunoeder | Changes: <ul><li>add `dnssec_zsk` to `GET /api/v2/zones/{zone}` response</li></ul>|\n| 2.7 | 2023-11-15 | Michael Braunoeder | Changes: <ul><li>`GET /api/v2/zones`: `filter[domain]` add special characters `^` and `$` to support \"domain starts/end with\"-searches</ul> |\n| 2.8 | 2025-02-12 | Michael Braunoeder | Changes: <ul><li>`GET /api/v2/stats/topzones`: remove `id` from response </li></ul>|\n| 2.9 | 2025-02-19 | Michael Braunoeder | Changes: <ul><li>`GET api/v2/reports/nxdomains` , `GET api/v2/reports/queryrates`, `GET /api/v2/reports/accounting`: add parameter `type=json` to get results in JSON format</li><li>`GET api/v2/reports/queryrates`: add paramter `include_nx=1`to number of NX queries too</li></ul>|",
+    "contact": {},
+    "version": "2.9"
+  },
+  "paths": {
+    "/api/v2/zones": {
+      "get": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "List configured zones",
+        "description": "returns a list of configured zones\n\nNote: This call is paginated",
+        "operationId": "ListConfiguredZones",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "request given page",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "integer",
+              "example": 1,
+              "default": 1,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "change the number of items per page. Default 100 (-1 disables paging)",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "integer",
+              "example": 200,
+              "default": 100,
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          {
+            "name": "filter[domain]",
+            "in": "query",
+            "description": "filter results based on substring search on domainname. <br>`^` matches the begin of the domainname,<br>`$`matches the end of the domainname<br>(e.g. `.at$`: get a list of domains with the TLD .at)",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "example": "mydomain"
+            }
+           },
+
+          {
+            "name": "filter[type]",
+            "in": "query",
+            "description": "filter results based on type",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "enum": [
+                    "MASTER",
+                    "SLAVE"
+                ],
+                "example": "MASTER"
+            }
+           },
+           {
+            "name": "filter[dnssec]",
+            "in": "query",
+            "description": "filter results based on DNSSEC state.<br>`yes` returns only zones using RcodeZero's DNSSEC signing service.<br>`presigned` returns only zones which are already signed by the customer<br>`no` returns only zones that are un-signed.<br>Not using this filter will return signed and unsigned zones",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "enum": [
+                    "yes",
+                    "no",
+                    "presigned"
+                ],
+                "example": "yes"
+            }
+           },
+           {
+            "name": "filter[zone_disabled]",
+            "in": "query",
+            "description": "filter results based on zone_disabled flag",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "enum": [
+                    "true",
+                    "false"
+                ],
+                "example": "false"
+            }
+           },
+           {
+            "name": "filter[problematic_domain]",
+            "in": "query",
+            "description": "filter results on problematic domain flag",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "enum": [
+                    "true",
+                    "false"
+                ],
+                "example": "false"
+            }
+           },
+           {
+            "name": "orderby[domain]",
+            "in": "query",
+            "description": "order list by domain name",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "enum": [
+                    "ASC",
+                    "DESC"
+                ],
+                "example": "ASC"
+            }
+           },
+           {
+            "name": "orderby[type]",
+            "in": "query",
+            "description": "order list by type",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "enum": [
+                    "ASC",
+                    "DESC"
+                ],
+                "example": "ASC"
+            }
+           },
+           {
+            "name": "orderby[dnssec]",
+            "in": "query",
+            "description": "order list by dnssec state",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "enum": [
+                    "ASC",
+                    "DESC"
+                ],
+                "example": "ASC"
+            }
+           },
+           {
+            "name": "orderby[created]",
+            "in": "query",
+            "description": "order list by created timestamp",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "enum": [
+                    "ASC",
+                    "DESC"
+                ],
+                "example": "ASC"
+            }
+           },
+           {
+            "name": "orderby[last_check]",
+            "in": "query",
+            "description": "order list by last_check timestamp",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "enum": [
+                    "ASC",
+                    "DESC"
+                ],
+                "example": "ASC"
+            }
+           },
+           {
+            "name": "orderby[next_check]",
+            "in": "query",
+            "description": "order list by next schedules check timestamp",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "enum": [
+                    "ASC",
+                    "DESC"
+                ],
+                "example": "ASC"
+            }
+           },
+           {
+            "name": "orderby[nsset]",
+            "in": "query",
+            "description": "order list by assigned rcode0 nsset",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "enum": [
+                    "ASC",
+                    "DESC"
+                ],
+                "example": "ASC"
+            }
+           },
+           {
+            "name": "orderby[master]",
+            "in": "query",
+            "description": "order list by master ips",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "enum": [
+                    "ASC",
+                    "DESC"
+                ],
+                "example": "ASC"
+            }
+           },
+           {
+            "name": "orderby[serial]",
+            "in": "query",
+            "description": "order list by domain serial",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "enum": [
+                    "ASC",
+                    "DESC"
+                ],
+                "example": "ASC"
+            }
+           },
+           {
+            "name": "orderby[zone_disabled]",
+            "in": "query",
+            "description": "order list by zone_disabled flag",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "enum": [
+                    "ASC",
+                    "DESC"
+                ],
+                "example": "ASC"
+            }
+           }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListZones"
+                },
+                "example": {
+                  "current_page": 1,
+                  "data": [
+                    {
+                      "id": 543728,
+                      "domain": "testzone144.at",
+                      "type": "SLAVE",
+                      "dnssec": "no",
+                      "created": "2019-09-11T11:43:31Z",
+                      "last_check": null,
+                      "serial": null,
+                      "masters": [
+                        "193.0.2.2",
+                        "2001:db8::2"
+                      ],
+                      "nsset": [
+                        "sec1.rcode0.net",
+                        "sec2.rcode0.net"
+                      ],
+                      "outbound_xfr_host": {
+                        "ips": [
+                          "83.136.34.31",
+                          "2a02:850:8::31"
+                        ],
+                        "port": 53
+                      },
+                      "zone_disabled": null
+                    }
+                  ],
+                  "from": 1,
+                  "last_page": 1,
+                  "next_page_url": "null",
+                  "path": "https://my.rcodezero.at/api/v2/zones",
+                  "per_page": 100,
+                  "prev_page_url": "null",
+                  "to": 2,
+                  "total": 2
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "post": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "Add a zone to RcodeZero",
+        "description": "Adds a new zone (master or slave) to the anycast network.\n\nWhen a master zone is added, a zone skeleton (SOA and NS record sets) is created automatically.\n\nWhen the zone which should be added is already provisioned on RcodeZero (under management by another RcodeZero account), the system will by default rejects the request with a respective error message. To allow the transfer (change of ownership) from one RcodeZero account to another, a transfer code has to be added to the zone (by the zone owner, thus the code should be added before transferring a domain to a new account). The transfer code has to be added as TXT record for the subdomain “rcode0” and has to look like this:\n\n```\nrcode0 IN TXT \"allowed=XXXXXXXXX\" \n```\n\nwhere XXXXXXXXX is the md5-hash of the RcodeZero username of the new account. \nIf the transfer code check was successful, the domain will be switched from one customer to the other, the master server IP(s) will be changed to the new ones, and a zone transfer will be performed.\n\nTransfer code example: In this example the domain to be transferred is “example.com” and the username of the gaining RcodeZero customer is “best-isp.com”:\n\n```\nrcode0.example.com. IN TXT \"allowed=15c0bd9371ff658a5634ae16e7632ca6\"\n```",
+        "operationId": "AddZone",
+        "parameters": [
+          {
+            "name": "dnssec",
+            "in": "query",
+            "description": "When set to 1, the created zone will be signed immediately and there is no need to consider any TTLs. Hence, the DNSKEY and DS record will be immediately released and returned in the response. There will not be a DSUPDATE notification for this zone, but you still have to call zones/{zone}/dsupdate after you have added the DS record to the parent zone.",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "integer",
+              "example": 0
+            }
+          },
+          {
+            "name": "test",
+            "in": "query",
+            "description": "when set to 1 the given zone is validated against the Rcode0 policy if it could be added or not (e.g. because there is already a parent zone, zone already configured, ...). The given zone is NOT added to the Rcode0 network.",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddNewZoneRequest"
+              },
+              "example": {
+                "domain": "testzone1.at",
+                "type": "slave",
+                "masters": [
+                  "193.0.2.2",
+                  "2001:db8::2"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddZoneResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Zone testzone1.at successfully added",
+                  "nsset": [
+                    "sec1.rcode0.net.",
+                    "sec2.rcode0.net."
+                  ],
+                  "outbound_xfr_host": {
+                    "ips": [
+                      "83.136.34.10",
+                      "2a02:850:9::8"
+                    ],
+                    "port": 53
+                  },
+                  "dnssec_dnskey": "testzone1.at. IN DNSKEY 257 3 8 AwEAAa+wcDdWGltKZyx0esjA7vREMFo1spSYf0HpmUxf+ndVxpAlKHvD A/NIJbeWrSMPeTto4ZvqpAfiAOaCHOOIlHS30P0tq6Y4174/wqLIYl/P B8pf30p8Wqx3Ot3TBfdNHJc1b3coreRcRJTrej9L6YUCOHe8MvKnYcNB gt0Xy61tDbroGoDTqeSI+Im2d63yJnxFPxSmgbjjZvIGmnLPsPpQBfi9 WzHxETAFFvplZs8VhemtdxSnD48BiTUQvHpbEltl7V3YnT2UvsO9cNv0 mfm80DuSuGjNBR7hH2XPBJy6QcESwREg722tUKZErUC2GXL9rMah/SH7 9DjvUNZTbjE= ; key id = 36325",
+                  "dnssec_ds": "testzone1.at. IN DS 36325 8 2 F661E5AA642F524CD8EAB830A13D6DAF975265E54F94C6A4201AE40A470A4C32"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/zones/{zone}": {
+      "get": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "Get details of a configured zone",
+        "description": "",
+        "operationId": "GetZoneDetails",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZoneDetails"
+                },
+                "example": {
+                  "id": 2740873,
+                  "domain": "testzone1.at",
+                  "type": "SLAVE",
+                  "masters": [
+                    "193.0.2.2",
+                    "2001:db8::2"
+                  ],
+                  "serial": 20180411,
+                  "last_check": "null",
+                  "dnssec_status": "Signed",
+                  "dnssec_status_detail": "Signed with NSEC3, no opt-out (RSASHA256 with 2048 bits KSK and 1024 bits ZSK)",
+                  "dnssec_ksk_status": "Initial signing phase (waiting for ACK)",
+                  "dnssec_ksk_status_detail": "The new keys are safe to be published in the parent zone. Please submit the DNSKEY/DS key to the parent zone and acknowledge the submission by pressing the 'Acknowledge' button.",
+                  "dnssec_ksk_unacknowledged": true,
+                  "dnssec_ds": "testzone1.at. IN DS 60295 8 2 A7833EF91642D145DBF6384D5394767E417AB056BECDAEA3E33EBD80B3387BE3",
+                  "dnssec_dnskey": "testzone1.at. IN DNSKEY 257 3 8 AwEAAZ3vhxR1HWAByWlLoLr0gkXMPqgmO1MwUSU71nnXKynO0Hj+Uacv 5co9EyhdB2Y9qoNqr7604aV5a9Gpw6eA5SFtaLGfj/C1blvfQt2knByZ nAQcc/88Hze3YiS5UfCn24fBGUtW1ti4s9SONLV2fj9tvcg1qUmhH6kX mQjPUSYYRJqdPX3Zb0GgdozIG9TTNFXmoNKgw5yGi5zMBjGIead4Nfaa cdyqD5Wm4pBJFHOsxkT7+LqExokZW3MB48fSY0TlV9BgIQ4OCjPwyC2I lub0wZK/pcYD+1bTMOzYYycJyB4jRO5TZ1/fRYPxop2295GY85d5vbMH +m8TJLzEsV8= ; key id = 60295",
+                  "dnssec_zsks": [{
+                    "key": "testzone1.at. IN DNSKEY 256 3 13 OPSCFURNgFno0d5bOpBDFtE+404HCdbEzQp6HM2kxdyZwe1Rc4bzpaXr STv6YxIe3WBhU/GbG6S+I9aGe9kT6w==",
+                    "keyid": 36834,
+                    "active": true
+                  }],
+                  "dnssec_zsk_next_key_event": "2023-09-02T10:43:59Z",
+                  "zone_disabled": false,
+                  "nsset": [
+                    "secdev5-tst.rcode0.net"
+                  ],
+                  "outbound_xfr_host": {
+                    "ips": [
+                      "83.136.34.31",
+                      "2a02:850:8::31"
+                    ],
+                    "port": 53
+                  },
+                  "cds_cdnskey_publish": false,
+                  "serial_auto_increment": true
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "put": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "Update a configured zone",
+        "description": "To change a zone from type=master to type=slave provide\n\n```\n{\n    \"type\": \"slave\",\n    \"masters\": [\"193.0.2.2\",\"2001:db8::2\"]\n}\n```\n\nto change the master ips if a zone is type=slave\n\n```\n{\n    \"masters\": [\"193.0.2.2\",\"2001:db8::2\"]\n}\n\n```\nIf a secondary zone has an incoming TSIG key configured, this configuration is deleted when converting the zone to a primary zone.",
+        "operationId": "UpdateZone",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateZoneRequest"
+              },
+              "example": {
+                "masters": [
+                  "193.0.2.2",
+                  "2001:db8::2"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateZoneResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Zone testzone1.at successfully updated"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "patch": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "Set zone status",
+        "description": "Sets the zone status (enabled/disabled). An enabled zone is configured on the RcodeZero network and visible in the DNS. A disabled zone remains configured on the RcodeZero network but will not be visible in the DNS.",
+        "operationId": "PatchZone",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchZoneRequest"
+              },
+              "example": {
+                "zone_disabled": true
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatchZoneResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "zone_disabled has been set"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "delete": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "Delete zone",
+        "description": "removes a zone from the RcodeZero Anycast network",
+        "operationId": "DeleteZone",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteZoneResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Zone testzone1.at successfully removed"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/zones/{zone}/rrsets": {
+      "get": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "Get RRset for configured zone",
+        "description": "get the RRsets for given zone. Works for master and slave zones.\n\nNote: This call is paginated",
+        "operationId": "GetRrsets",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          },
+          {
+            "name": "names",
+            "in": "query",
+            "description": "return only rrset with given name(s)",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "string",
+              "example": "www.testzone1.at."
+            }
+          },
+          {
+            "name": "types",
+            "in": "query",
+            "description": "return only RRsets with given type(s)",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "string",
+              "example": "A,NS"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "request given page",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "integer",
+              "example": 1,
+              "default": 1,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "change the number of items per page. Default 100",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "integer",
+              "example": 200,
+              "default": 100,
+              "minimum": 1,
+              "maximum": 10000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetRRsets"
+                },
+                "example": {
+                  "current_page": 1,
+                  "data": [
+                    {
+                      "name": "testzone1.at.",
+                      "type": "SOA",
+                      "ttl": 60,
+                      "records": [
+                        {
+                          "content": "sec1.rcode0.net. rcodezero-soa.ipcom.at. 1 10800 3600 604800 60",
+                          "disabled": false
+                        }
+                      ]
+                    },
+                    {
+                      "name": "testzone1.at.",
+                      "type": "NS",
+                      "ttl": 60,
+                      "records": [
+                        {
+                          "content": "sec1.rcode0.net.",
+                          "disabled": false
+                        },
+                        {
+                          "content": "sec2.rcode0.net.",
+                          "disabled": false
+                        }
+                      ]
+                    }
+                  ],
+                  "from": 1,
+                  "last_page": 1,
+                  "next_page_url": "null",
+                  "path": "https://my.rcodezero.at/api/v2/zones/testzone1.at/rrsets",
+                  "per_page": 100,
+                  "prev_page_url": "null",
+                  "to": 2,
+                  "total": 2
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "patch": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "Manage RRsets",
+        "description": "<p>adds/updates or deletes  RRsets.</p><p>Only complete RRsets can be manipulated. So if a RRset consists of two A records and one A record is to be updated the update request must contain both A records.</p><p>When updating the SOA only the MName and Email values of the SOA record content and the TTL of the SOA record itself can be updated, updates for the other timer values will be ignored. Disabling a SOA record will also be ignored.</p><p>The RRSet must comply to the common RFCs and fulfiil checks like <ul><li>check for trailing dots in the content</li><li>check format of MX and DNSKEY records</li><li>check for CNAME or another records for $label if a CNAME for $label is added</li><li>check for ALIAS for $label if ALIAS for $label is added</li><li>check MX / Null-MX if MX / Null-MX is added</li></ul></p><p>Examples: <ul><li>add a new RRset: <code>[  {  \"name\": \"www.testzone1.at.\",  \"type\": \"A\",  \"ttl\" : 3600,  \"changetype\": \"add\",  \"records\": [  {  \"content\": \"10.10.0.1\"  }  ]  }  ]</code></li><li>update a RRSet: <code>[ { \"name\": \"www.testzone1.at.\",  \"type\": \"A\",  \"ttl\" : 3600,  \"changetype\": \"update\",  \"records\": [  {  \"content\": \"10.10.0.10\"  },  {  \"content\": \"10.10.0.20\"  }  ]  }  ]</code></li><li>delete a RRset: <code>[  {  \"name\": \"www.testzone1.at.\",  \"type\": \"A\",  \"changetype\": \"delete\"  }  ]  </code></li><li>update a RRSet and disable one record: <code>[  {  \"name\": \"www.testzone1.at.\",  \"type\": \"A\",  \"changetype\": \"update\",  \"records\": [  {  \"content\": \"10.10.0.10\"  },  {  \"content\": \"10.10.0.20\",  \"disabled\": true  } ]  }  ]</code></li></ul>A maximum of 1000 RRSets per requests are allowed.<br>A changelog with the last 100 RRset-Updates is available in the webinterface.<p>Requests to the same zone are serialized in the API to prevent race conditions. Hence, there is no great benefit if you send concurrent requests for the same zone. Further, if there are too many concurrent requests and serialization leads to more than 5s delay, the request is rejected.</p>",
+        "operationId": "Add/update/deleteRrsets",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/UpdateRRsetRequest"
+                },
+                "description": ""
+              },
+              "example": [
+                {
+                  "name": "www.testzone1.at.",
+                  "type": "A",
+                  "ttl": 86400,
+                  "changetype": "add",
+                  "records": [
+                    {
+                      "content": "10.10.0.10"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateRRsetResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "RRsets updated"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "put": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "replace RRsets",
+        "description": "replace all RRsets in zone.\n\nIf `serial_auto_increment` for zone is disabled, the serial of the given SOA-RR will be set, otherwise the existing serial will be incremented. Attention: decreasing the serial will avoid customer secondaries updating the zones. A maximum of 3000 rrset could be added to the zone.\nNote: `replace RRsets` does not write a changelog, it behaves like a zone transfer",
+        "operationId": "replaceRrsets",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReplaceRRsetRequest"
+              },
+              "example": {
+                "rrsets":  [
+                  {
+                    "name": "testzone1.at.",
+                    "type": "SOA",
+                    "ttl": 60,
+                    "records": [
+                      {
+                        "content": "sec1.rcode0.net. rcodezero-soa.ipcom.at. 1 10800 3600 604800 60",
+                        "disabled": false
+                      }
+                    ]
+                  },
+                  {
+                    "name": "testzone1.at.",
+                    "type": "NS",
+                    "ttl": 60,
+                    "records": [
+                      {
+                        "content": "sec1.rcode0.net.",
+                        "disabled": false
+                      },
+                      {
+                        "content": "sec2.rcode0.net.",
+                        "disabled": false
+                      }
+                    ]
+                  },
+                  {
+                    "name": "www.testzone1.at.",
+                    "type": "A",
+                    "ttl": 60,
+                    "records": [
+                      {
+                        "content": "1.2.3.4",
+                        "disabled": false
+                      }
+                    ]
+                  }
+                ]
+                }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplaceRRsetResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "RRsets replaced"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "delete": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "Delete all RRsets from zone",
+        "description": "removes all RRsets (except SOA and NS) from the zone",
+        "operationId": "DeleteRrsets",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteRRsetResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "all RRsets (expect SOA and NS) removed"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/zones/{zone}/retrieve": {
+      "post": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "Queue Zone Transfer",
+        "description":"This endpoint works only with secondary zones and queues a zone transfer request for the given zone. The zone transfer will be performed usually within a few seconds, and will be tried only once by randomly choosing one of the configured primary name servers. If that single attempt fails, no further attemps will be performed.<br>The zone will be transfered to our inbound name server regardless of its serial, but the internal zone distribution is only reliable if the zone's serial on the customer's primary name server is higher than on the RcodeZero name server (for zones using the RcodeZero DNSSEC service it only needs to be higher than RcodeZero's 'serialincoming' serial, not the public facing serial).<p>NOTE: As said above, this endpoint is not a reliable way to decrease a zone's serial. To guarantee consistent zones over all RcodeZero location, the zone's serial MUST always be increased on zone changes.</p>",
+        "operationId": "QueueZoneTransfer",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZoneTransferResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Zonetransfer for zone testzone1.at queued"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/zones/{zone}/outbound": {
+      "get": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "Get outbound zone transfer configuration for a zone",
+        "description": "Show the configured outbound XFR settings for a zone",
+        "operationId": "ShowOutboundXFRConfiguration",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZoneOutboundResponse"
+                },
+                "example": {
+                  "secondaries": [
+                    "193.0.2.2",
+                    "2001:db8::2"
+                  ],
+                  "tsigkey": "my-rcode0-tsigkey"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "post": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "Set outbound zone transfer configuration for a zone",
+        "description": "Outbound Zone transfers can be configured on account or zone level. A specific per zone configuration overrules the account wide configuration (both secondary IPs and TSIG key). The name of the TSIG key must reference to a configured [outgoing TSIG key](##api-tsig-keys)replaces the outbound zone transfer configuration with the provided one. The request must contain a full configuration,  emtpy fields will remove possibly configured values (and the zone configuration will fall back to the default account wide configuration)",
+        "operationId": "SetOrUpdateConfiguration",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateZoneOutboundRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateZoneOutboundResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Outbound transfer settings have been updated",
+                  "secondaries": [
+                    "193.0.2.2",
+                    "2001:db8::2"
+                  ],
+                  "tsigkey": "mytsigkey"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "delete": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "Remove outbound zone transfer configuration",
+        "description": "Delete zone specific oubound zone transfers settings",
+        "operationId": "DeleteConfiguration",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteZoneOutboundResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Outbound transfer settings have been deleted"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/zones/{zone}/inbound": {
+      "get": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "Get inbound (into Rcode0) zone transfer configuration for a zone",
+        "description": "Show the configured inboud XFR settings for a zone",
+        "operationId": "ShowInboundXFRConfiguration",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZoneInboundResponse"
+                },
+                "example": {
+                  "tsigkey": "my-rcode0-tsigkey"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "post": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "Set inbound zone transfer configuration for a zone",
+        "description": "Inbound Zone transfers can be configured on account or zone level. A specific per zone configuration overrules the account wide configuration. The name of the TSIG key must reference to a configured [outgoing TSIG key](##api-tsig-keys)replaces the outbound zone transfer configuration with the provided one.",
+        "operationId": "SetOrUpdateInboundConfiguration",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateZoneInboundRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateZoneInboundResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Inbound transfer settings have been updated",
+                  "tsigkey": "mytsigkey"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "delete": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "Remove inbound zone transfer configuration",
+        "description": "Delete zone specific inbound zone transfers settings",
+        "operationId": "DeleteInboundConfiguration",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteZoneInboundResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Inbound transfer settings have been deleted"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/zones/{zone}/status": {
+      "get": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "check if a zone is disabled or not",
+        "description": "",
+        "operationId": "ZoneStatus",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ZoneStatusResponse"
+                },
+                "example": {
+                  "zone_disabled": false
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/zones/{zone}/sign": {
+      "post": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "sign a zone with DNSSEC",
+        "description": "Starts DNSSEC signing of a zone.",
+        "operationId": "Dnssec:SignZone",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          },
+          {
+            "name": "ignoresafetyperiod",
+            "in": "query",
+            "description": "When set to 1 the given zone will be signed immediately, ignoring the zone TTLs which are usually used to ensure resolution issues. Hence, the DNSKEY and DS record will be immediately released and returned in the response. There will not be a DSUPDATE notification for this zone, but you still have to call zones/{zone}/dsupdate after you have added the DS record to the parent zone. NOTE: Ignoring the safety period for DS pulication can cause resolution issues with DNSSEC validating resolvers. Only use this feature for testing, or if you know what you do.",
+            "style": "form",
+            "explode": true,
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 0
+            }
+          },
+          {
+            "name": "enable_cds_cdnskey",
+            "in": "query",
+            "description": "When set to 1 the publication of CDS/CDNSKEY records for the given zone is enabled.",
+            "style": "form",
+            "explode": true,
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignZoneResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Zone testzone1.at signed successfully",
+                  "dnssec_dnskey": "testzone1.at. IN DNSKEY 257 3 8 AwEAAcAJz7w+VKM0rR49FdcXnz5qZ4x42cLXCOvyHDpkYb/4nEoDseVC KDhlXDqS/d80EXi8DxG4JAhalj/vesHnGQ83Mfhkxb8N7LwYvc0Mqy8C dNwOg4Fw+i1Xsa+xgqBBFcY89l1wneVqWio03TcvMm7RZmpnkiwmnCtH rtVvf0q3LINRFWhkeGwkqLER4FGc3R74wXOTHMSmH5BYBW/W7tuGv10f 2V9rafbTP982v8scLt7sdePnZ/aIa0gJUSF+YNy2aGaYzeSH/Q6s9D1u hlbptqoUptpTyTHwcnDcML2JcyprHCDQCKN+4coJf+74k1MVrcDkCuOe 27DbS/rV7HU= ; key id = 16747",
+                  "dnssec_ds": "testzone1.at. IN DS 16747 8 2 A6F8C5136E23E96094A13A5496D179BF74CE45B5B7C24EE4CF1371A1248E60B2"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+
+    "/api/v2/zones/{zone}/unsign": {
+      "post": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "stop signing a zone with DNSSEC",
+        "description": "Stops DNSSEC signing of a zone, reverting the zone to unsigned. A zone will become safe to unsign if: there are no pending KSK rollovers, and it can be ensured that the DS disappeared from the resolvers (the date when we last saw the DS + the TTL of the DS + 18hours safty interval for zone propagation delay).",
+        "operationId": "Dnssec:UnsignAZone",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          },
+          {
+            "name": "force",
+            "in": "query",
+            "description": "When set to 1 force the unsigning of the given zone even if the DS-records are still active. Use with caution, this may lead to resolving issues with DNSSEC validating resolvers. Only use this feature for testing, or if you know what you do.",
+            "style": "form",
+            "explode": true,
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "example": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnsignZoneResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Zone testzone2.at unsigned successfully"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/zones/{zone}/keyrollover": {
+      "post": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "start a DNSSEC KSK rollover",
+        "description": "Starts a DNSSEC key signing key rollover",
+        "operationId": "Dnssec:StartKeyRollover",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartKeyRolloverResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/zones/{zone}/dsupdate": {
+      "post": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "Ack a DS update",
+        "description": "Acknowledges a DS update. This automatically also deletes all DSUPDATE notifications for this domain from the message queue.",
+        "operationId": "Dnssec:AcknowledgeDsUpdate",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DSAckResponse"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/zones/{zone}/simulate/dsseen": {
+      "post": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "simulate DNSSEC action \"dsseen\" (Testsystem only)",
+        "description": "available on test system only:\n\nSimulates that the DS records of all KSKs of a certain domain were seen in the parent zone. This allows to test key rollovers even if the DS of the currently active KSK was not seen in the parent zone. A DSSEEN event will be pushed ot the message queue.",
+        "operationId": "Dnssec:SimulateAction\"dsseen\"",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulateDNSSECdsseenResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "simulate ok: Simulated DSSSEN. Had to update 1 keys for zone 'testzone1.at'"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/zones/{zone}/simulate/dsremoved": {
+      "post": {
+        "tags": [
+          "API: Zone Management"
+        ],
+        "summary": "simulate DNSSEC action \"dsremoved\" (Testsystem only)",
+        "description": "available only on test system:\n\nsimulates that the DS records of all KSKs of a certain domain were removed from the parent zone. This allows to subsequently \"unsign\" a domain.\n\nA DSREMOVED event will be pushed to the message queue.",
+        "operationId": "Dnssec:SimulateAction\"dsremoved\"",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulateDNSSECdsremovedResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "simulate ok: Simulated DSREMOVED. Had to update 1 keys for zone 'testzone1.at'"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/tsig": {
+      "get": {
+        "tags": [
+          "API: TSIG Keys"
+        ],
+        "summary": "list configured TSIG keys",
+        "description": "",
+        "operationId": "ListConfiguredTsigKeys",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TsigKeyObject"
+                  }
+                },
+                "example": [
+                  {
+                    "id": 288,
+                    "name": "tsigkey42",
+                    "algorithm": "hmac-md5",
+                    "secret": "0Ey67Uc57bj0FUlutif3vzCwxxGJsZKzos8Nql7hNS/O1R9cSGVH7i3weq6xuPX9eR2yJoLrxySGzyVV0BRQ5g=="
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "post": {
+        "tags": [
+          "API: TSIG Keys"
+        ],
+        "summary": "add a new TSIG key",
+        "description": "Adds a new TSIG key to RcodeZero. The name of the key must be unique in the RcodeZero system. If the name is already taken (by another RcodeZero account) an error is raised.",
+        "operationId": "AddANewTsigKey",
+        "parameters": [],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddTSIGRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddTSIGResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Key 'tsigkey1' successfully added"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/tsig/{keyname}": {
+      "get": {
+        "tags": [
+          "API: TSIG Keys"
+        ],
+        "summary": "show TSIG key",
+        "description": "show details of a given key.",
+        "operationId": "ShowTsigKey",
+        "parameters": [
+          {
+            "name": "keyname",
+            "in": "path",
+            "description": "name of the tsig key to be shown",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "tsigkey1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TsigKeyObject"
+                },
+                "example": {
+                    "name": "tsigkey42",
+                    "algorithm": "hmac-md5",
+                    "secret": "0Ey67Uc57bj0FUlutif3vzCwxxGJsZKzos8Nql7hNS/O1R9cSGVH7i3weq6xuPX9eR2yJoLrxySGzyVV0BRQ5g=="
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "put": {
+        "tags": [
+          "API: TSIG Keys"
+        ],
+        "summary": "update TSIG key",
+        "description": "Updates the alghoritm and secret of a given key.",
+        "operationId": "UpdateTsigKey",
+        "parameters": [
+          {
+            "name": "keyname",
+            "in": "path",
+            "description": "name of the tsig key to be updated",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "tsigkey1"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTSIGRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateTSIGResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Key 'tsigkey1' successfully updated"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "delete": {
+        "tags": [
+          "API: TSIG Keys"
+        ],
+        "summary": "Delete TSIG key",
+        "description": "Deletes the given TSIG key from the system. The key is also removed from the zone configurations (if still configured, these zones will fall back to the default key, if configured) or as the default key.",
+        "operationId": "DeleteTsigKey",
+        "parameters": [
+          {
+            "name": "keyname",
+            "in": "path",
+            "description": "name of the tsig key to be deleted",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "tsigkey1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteTSIGResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Key 'tsigkey1' successfully removed"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/tsig/out": {
+      "get": {
+        "tags": [
+          "API: TSIG Keys"
+        ],
+        "summary": "list configured TSIG keys",
+        "description": "",
+        "operationId": "ListConfiguredOutgoingTsigKeys",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ListOutgoingTSIGResponse"
+                  }
+                },
+                "example": {
+                  "id": 288,
+                  "name": "tsigkey1",
+                  "algorithm": "hmac-md5",
+                  "secret": "0Ey67Uc57bj0FUlutif3vzCwxxGJsZKzos8Nql7hNS/O1R9cSGVH7i3weq6xuPX9eR2yJoLrxySGzyVV0BRQ5g=="
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      },
+      "post": {
+        "tags": [
+          "API: TSIG Keys"
+        ],
+        "summary": "add a new TSIG key",
+        "description": "Adds a new TSIG key to RcodeZero. The name of the key must be unique in the RcodeZero system. If the name is already taken (by another RcodeZero account) an error is raised. The `default_key` attribute defines if this key should be the default key for the account and used for all zones without a zone specific outbound XFR configuration. Only one default key could be configured, the replace the current default key, delete the old one and add the new one.",
+        "operationId": "AddANewOutgoingTsigKey",
+        "parameters": [],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddOutgoingTSIGRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddOutgoingTSIGResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Key 'tsigkey1' successfully added"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/v2/tsig/out/{keyname}": {
+      "put": {
+        "tags": [
+          "API: TSIG Keys"
+        ],
+        "summary": "update TSIG key",
+        "description": "Updates the alghoritm and secret of a given key.",
+        "operationId": "UpdateOutgoingTsigKey",
+        "parameters": [
+          {
+            "name": "keyname",
+            "in": "path",
+            "description": "name of the tsig key to be deleted",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "tsigkey1"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateOutgoingTSIGRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateOutgoingTSIGResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Key 'tsigkey1' successfully updated"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      },
+      "delete": {
+        "tags": [
+          "API: TSIG Keys"
+        ],
+        "summary": "Delete TSIG key",
+        "description": "Deletes the given TSIG key from the system. The key is also removed from the zone configurations (if still configured) and these zones will fall back to the default key.",
+        "operationId": "DeleteOutgoingTsigKey",
+        "parameters": [
+          {
+            "name": "keyname",
+            "in": "path",
+            "description": "name of the tsig key to be deleted",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "tsigkey1"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteOutgoingTSIGResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Key 'tsigkey1' successfully removed"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/v2/zones/{zone}/stats/queries": {
+      "get": {
+        "tags": [
+          "API: Zone Statistics"
+        ],
+        "summary": "Queries per day",
+        "description": "Get the total number of queries and the number of queries answered with NXDOMAIN for the given zone for the last 180 days (max.)",
+        "operationId": "QueriesPerDay",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ZoneStatsQueries"
+                  },
+                  "description": ""
+                },
+                "example": [
+                  {
+                    "date": "2018-3-25",
+                    "qcount": 312355,
+                    "nxcount": 2132
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/zones/{zone}/stats/magnitude": {
+      "get": {
+        "tags": [
+          "API: Zone Statistics"
+        ],
+        "summary": "DNS Magnitude",
+        "description": "This call is deprecated and does not return any data",
+        "operationId": "DnsMagnitude",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ZoneStatsMagnitude"
+                  },
+                  "description": ""
+                },
+                "example": [
+                  {
+                    "date": "2018-3-25",
+                    "mag": "4.2"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/v2/zones/{zone}/stats/qnames": {
+      "get": {
+        "tags": [
+          "API: Zone Statistics"
+        ],
+        "summary": "QNAMEs",
+        "description": "This call is deprecated and does not return any data",
+        "operationId": "QNAMEs",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ZoneStatsQname"
+                  },
+                  "description": ""
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/v2/zones/{zone}/stats/nxdomains": {
+      "get": {
+        "tags": [
+          "API: Zone Statistics"
+        ],
+        "summary": "NXDOMAINs",
+        "description":  "This call is deprecated and does not return any data",
+        "operationId": "NXDOMAINs",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ZoneStatsNXDomain"
+                  },
+                  "description": ""
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/v2/stats/topzones": {
+      "get": {
+        "tags": [
+          "API: Account Statistics"
+        ],
+        "summary": "Top Zones",
+        "description": "Return the Top 1000 zones from your account with the highest number of queries in the given past period.\n\nReturns an empty array if no data is available",
+        "operationId": "TopZones",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "get statistics for the last X days (X between 1 and 180, default 30)",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "number",
+              "example": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccountStatsTopzones"
+                  },
+                  "description": ""
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+
+    "/api/v2/stats/querycounts": {
+      "get": {
+        "tags": [
+          "API: Account Statistics"
+        ],
+        "summary": "Queries",
+        "description": "Get the total number of queries and the number of queries answered with NXDOMAIN for all zones in your account for the given past period.",
+        "operationId": "Queries",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "get statistics for the last X days; (X between 1 and 180, default 30)",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "number",
+              "example": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccountStatsQueries"
+                  },
+                  "description": ""
+                },
+                "example": [
+                  {
+                    "date": "2018-02-24",
+                    "count": 3213123,
+                    "nxcount": 76642
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/stats/countries": {
+      "get": {
+        "tags": [
+          "API: Account Statistics"
+        ],
+        "summary": "Countries",
+        "description": "Return the number of Queries grouped by the originating country/subregion and region for the given past period.\n\nReturns an empty array if no data is available.",
+        "operationId": "Countries",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "get statistics for the last X days;  (X between 1 and 180, default 30)",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "number",
+              "example": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccountStatsCountries"
+                  },
+                  "description": ""
+                },
+                "example": [
+                  {
+                    "cc": "AT",
+                    "country": "Austria",
+                    "region": "Europe",
+                    "subregion": "Western Europe",
+                    "qc": 10353087
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/stats/topqnames": {
+      "get": {
+        "tags": [
+          "API: Account Statistics"
+        ],
+        "summary": "Top QNAMEs",
+        "description":  "This call is deprecated and does not return any data",
+        "operationId": "TopQnames",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "get statistics for the last X days; Valid values for X are 30, 60 and 180. Default 30",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "number",
+              "example": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccountStatsQnames"
+                  },
+                  "description": ""
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/v2/stats/topnxdomains": {
+      "get": {
+        "tags": [
+          "API: Account Statistics"
+        ],
+        "summary": "Top NXDOMAINs",
+        "description":  "This call is deprecated and does not return any data",
+        "operationId": "TopNxdomains",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "get statistics for the last X days; Valid values for X are 30, 60 and 180. Default 30",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "number",
+              "example": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccountStatsNXDomain"
+                  },
+                  "description": ""
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/v2/stats/topmagnitude": {
+      "get": {
+        "tags": [
+          "API: Account Statistics"
+        ],
+        "summary": "Top DNS magnitude",
+        "description": "This call is deprecated and does not return any data",
+        "operationId": "TopDnsMagnitude",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "description": "get statistics for the last X days; Valid values for X are 30, 60 and 180. Default 30",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "number",
+              "example": 30
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccountStatsMagnitude"
+                  },
+                  "description": ""
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/v2/messages": {
+      "get": {
+        "tags": [
+          "API: Message Queue"
+        ],
+        "summary": "Poll message",
+        "description": "retrieves the oldest unacknowledged message from the message queue.",
+        "operationId": "PollMessage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/pollmessagefrommessagequeue"
+                },
+                "example": {
+                  "id": 56007,
+                  "domain": "testzone2.at",
+                  "date": "2018-04-09T09:31:14Z",
+                  "type": "DSSEEN",
+                  "comment": "Simulate that the DS record has been seen in the parent zone."
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/messages/list": {
+      "get": {
+        "tags": [
+          "API: Message Queue"
+        ],
+        "summary": "get all messages from queue",
+        "description": "returns a list of all messages in messagequeue\n\nNote: This call is paginated",
+        "operationId": "ListMessageQueue",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "request given page",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "integer",
+              "example": 1,
+              "default": 1,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "change the number of items per page. Default 100 (-1 disables paging)",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "integer",
+              "example": 200,
+              "default": 100,
+              "minimum": 1,
+              "maximum": 10000
+            }
+          },
+          {
+            "name": "filter[domain]",
+            "in": "query",
+            "description": "filter results based given domainname",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "example": "mydomain"
+            }
+           },
+           {
+            "name": "orderby[domain]",
+            "in": "query",
+            "description": "order list by domain name",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "enum": [
+                    "ASC",
+                    "DESC"
+                ],
+                "example": "ASC"
+            }
+           },
+           {
+            "name": "orderby[type]",
+            "in": "query",
+            "description": "order list by type",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "enum": [
+                    "ASC",
+                    "DESC"
+                ],
+                "example": "ASC"
+            }
+           },
+           {
+            "name": "orderby[created]",
+            "in": "query",
+            "description": "order list by created timestamp",
+            "style": "form",
+            "explode": true,
+            "schema": {
+                "type": "string",
+                "enum": [
+                    "ASC",
+                    "DESC"
+                ],
+                "example": "ASC"
+            }
+           }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListMessages"
+                },
+                "example": {
+                  "current_page": 1,
+                  "data": [
+                      {
+                          "id": 1,
+                          "domain": "test.at",
+                          "type": "DSUPDATE",
+                          "comment": "Insert or replace DS record in the parent zone.",
+                          "date": "2021-05-01T07:37:04Z"
+                      },
+                      {
+                          "id": 2,
+                          "domain": "test.at",
+                          "type": "DSREMOVED",
+                          "comment": "DS record has been removed from the parent zone.",
+                          "date": "2021-05-05T17:37:04Z"
+                      },
+                      {
+                          "id": 3,
+                          "domain": "foo.bar",
+                          "type": "DSREMOVED",
+                          "comment": "DS record has been removed from the parent zone.",
+                          "date": "2021-04-05T11:22:14Z"
+                      }
+                  ],
+                  "from": 1,
+                  "last_page": 1,
+                  "next_page_url": "null",
+                  "path": "https://my.rcodezero.at/api/v2/messages/list",
+                  "per_page": 100,
+                  "prev_page_url": "null",
+                  "to": 3,
+                  "total": 3
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+  },
+    "/api/v2/messages/{id}": {
+      "delete": {
+        "tags": [
+          "API: Message Queue"
+        ],
+        "summary": "Acknowledge message",
+        "description": "Acknowlegdes (and deletes) the message with the given id",
+        "operationId": "AcknowledgeMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "id of message to acknowledge",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "number",
+              "example": 324
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/acknowledgemessageinmessagequeue"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Acknowledged notification '56007'"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/settings": {
+      "get": {
+        "tags": [
+          "API: Account Settings"
+        ],
+        "summary": "Get global account settings",
+        "description": "Get global account settings",
+        "operationId": "GetGlobalAccountSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/getglobalaccountsettings"
+                },
+                "example": {
+                  "secondaries": [
+                    "10.10.1.2"
+                  ],
+                  "tsigin": "mystigkey",
+                  "tsigout": "mystigkey"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/settings/secondaries": {
+      "put": {
+        "tags": [
+          "API: Account Settings"
+        ],
+        "summary": "Set global secondaries",
+        "description": "configures the account setting \"secondaries\". Those secondaries will receive notifies and may transfer out all zones under the management of the account.",
+        "operationId": "SetGlobalSecondaries",
+        "parameters": [],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/setglobalaccountsettingsecondariesRequest"
+              },
+              "example": {
+                "secondaries": [
+                  "10.10.1.2"
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/setglobalaccountsettingsecondaries"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Setting secondaries successfully configured"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "delete": {
+        "tags": [
+          "API: Account Settings"
+        ],
+        "summary": "remove global secondaries",
+        "description": "removes the configured secondaries",
+        "operationId": "RemoveGlobalSecondaries",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DelSettingSecondariesResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Setting secondaries successfully deleted"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+
+    "/api/v2/settings/tsig/in": {
+      "put": {
+        "tags": [
+          "API: Account Settings"
+        ],
+        "summary": "Set global TSIG key used for inbound transfers",
+        "description": "configures the TSIG key used for inbound zone transfers.\n\nThe TSIG key must be [added first](#post-/api/v2/tsig)",
+        "operationId": "SetGlobalInboundTsigKey",
+        "parameters": [],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/setDefaultTsigKeyRequest"
+              },
+              "example": {
+                "tsigkey": "my-rcode0-tsigkey"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/setDefaultTsigKeyResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Default TSIG-key successfully configured"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "delete": {
+        "tags": [
+          "API: Account Settings"
+        ],
+        "summary": "Removes global TSIG key used for inbound transfers",
+        "description": "removes the configured TSIG key use for inbound transfer. The TSIG key itself is configured, but it will not be used as global inbound key anymore",
+        "operationId": "RemoveGlobalInboundTsigKey",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/removeDefaultInboundTsigKeyResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Default TSIG-key successfully removed"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/settings/tsig/out": {
+      "put": {
+        "tags": [
+          "API: Account Settings"
+        ],
+        "summary": "Set global TSIG key used for outbound transfers",
+        "description": "configures the TSIG key used for outbound zone transfers.\n\nThe TSIG key must be [added first](#post-/api/v2/tsig)",
+        "operationId": "SetGlobalOutboundTsigKey",
+        "parameters": [],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/setDefaultTsigKeyRequest"
+              },
+              "example": {
+                "tsigkey": "my-rcode0-tsigkey"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/setDefaultTsigKeyResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Default TSIG-key successfully configured"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "delete": {
+        "tags": [
+          "API: Account Settings"
+        ],
+        "summary": "Removes global TSIG key used for outbound transfers",
+        "description": "removes the configured TSIG key use for outbound transfer. The TSIG key itself is configured, but it will not be used as global inbound key anymore",
+        "operationId": "RemoveGlobalOutboundTsigKey",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/removeDefaultTsigKeyResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Default TSIG-key successfully removed"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/settings/tsigout": {
+      "put": {
+        "tags": [
+          "API: Account Settings"
+        ],
+        "summary": "Set global outgoing tsig key",
+        "description": "configures the TSIG key used for outbound zone transfers.\n\nThe value must be a comma separated string of key parameters with: “keyname,algorithm,secret_base64”.",
+        "operationId": "SetGlobalOutgoingTsigKey",
+        "parameters": [],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/setglobalaccountsettingtsigKeyoutgoingRequest"
+              },
+              "example": {
+                "tsigkey": "mystigkey,hmac-sha256,BqpFrSK+zsvYDJ0oXZzfs3R6VVxabW3RL4GLTM/fm2QGQbvDIUZHWVzNXbAEYOC77EZFC+B4RfrdLE6soeQKUw=="
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/setglobalaccountsettingtsigKeyoutgoing"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Setting tsigout successfully configured"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      },
+      "delete": {
+        "tags": [
+          "API: Account Settings"
+        ],
+        "summary": "Remove global outgoing tsig key",
+        "description": "removes the configured TSIG key",
+        "operationId": "RemoveGlobalOutgoingTsigKey",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DelSettingTsigoutResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "Setting tsigout successfully deleted"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": true
+      }
+    },
+    "/api/v2/reports/problematiczones": {
+      "get": {
+        "tags": [
+          "API: Reports"
+        ],
+        "summary": "Get problematic zones list",
+        "description": "returns the list of problematic zones (=zones with could not be checked or transferred successfully from the master server)\n\nNote: This call is paginated",
+        "operationId": "ProblematicZones",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "request given page",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "integer",
+              "example": 1,
+              "default": 1,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "change the number of items per page. Default 100",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "integer",
+              "example": 200,
+              "default": 100,
+              "minimum": 1,
+              "maximum": 10000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reportsgetproblematiczones"
+                },
+                "example": {
+                  "current_page": 1,
+                  "data": [
+                    "Zones"
+                  ],
+                  "from": 1,
+                  "last_page": 1,
+                  "next_page_url": "null",
+                  "path": "https://my.rcodezero.at/api/v2/reports/problematiczones",
+                  "per_page": 100,
+                  "prev_page_url": "null",
+                  "to": 2,
+                  "total": 2
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/reports/nxdomains": {
+      "get": {
+        "tags": [
+          "API: Reports"
+        ],
+        "summary": "NXDOMAIN queries for today or yesterday",
+        "description": "get all QNAMEs and QTYPE for your account which have been answered with NXDOMAIN for yesterday or today as CSV or JSON.\n\nThe report is updated once every hour.",
+        "operationId": "NxdomainQueriesForTodayOrYesterday",
+        "parameters": [
+          {
+            "name": "day",
+            "in": "query",
+            "description": "get NXDOMAINs for today or yesterday; Valid values are 'today' or 'yesterday'. Defaults to 'today'",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "string",
+              "example": "today"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "output format, either `csv` or `json` . Defaults to 'csv'",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "string",
+              "example": "csv"
+            }
+          } 
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "example": "date,domain,qname,qtype,querycount\n2025-02-14,testzone1.at,none.testzone1.at.,A,158\n2018-02-27,tesstzone1.at,nolabel.testzone1.at.,A,6543"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NXDomainReportResponse"
+                },
+                "example": [
+                  {"date":"2025-02-14","domain":"testzone1.at","qname":"none.testzone1.at.","qtype":"A","querycount":"158"},
+                  {"date":"2025-02-14","domain":"testzone1.at","qname":"nollabel.testzone1.at.","qtype":"A","querycount":"6543"}
+                ]
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/reports/accounting": {
+      "get": {
+        "tags": [
+          "API: Reports"
+        ],
+        "summary": "accounting report",
+        "description": "get the accounting report per day for the given month as CSV or JSON\n\nParameter: month Values: 'YYYY-MM'",
+        "operationId": "AccountingReport",
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "description": "",
+            "required": true,
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "string",
+              "example": "2018-02"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "output format, either `csv` or `json` . Defaults to 'csv'",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "string",
+              "example": "csv"
+            }
+          } 
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "example": "account,\"date\",\"domain_count\",\"domain_count_dnssec\",\"records_count\",\"query_count\"\nmy-account,\"2018-02-01\",\"26\",\"8\",\"1181\",\"579806\"\nmy-accout,\"2018-02-02\",\"26\",\"8\",\"1181\",\"559600\"\nmy-account,\"2018-02-03\",\"26\",\"8\",\"1179\",\"603531\""
+                },
+                "example": "account,\"date\",\"domain_count\",\"domain_count_dnssec\",\"records_count\",\"query_count\"\nmy-account,\"2018-02-01\",\"26\",\"8\",\"1181\",\"579806\"\nmy-accout,\"2018-02-02\",\"26\",\"8\",\"1181\",\"559600\"\nmy-account,\"2018-02-03\",\"26\",\"8\",\"1179\",\"603531\""
+              },
+              "application/json": {
+                "schema": {
+                    "$ref": "#/components/schemas/AccountingReportResponse"
+                },
+                "example":  [
+                    {"account":"my-account","date":"2021-03-01","domain_count":100139,"domain_count_dnssec":8,"records_count":300952,"query_count":0},
+                    {"account":"my-account","date":"2021-03-02","domain_count":100139,"domain_count_dnssec":8,"records_count":300952,"query_count":0}
+                ]
+              }
+
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/reports/queryrates": {
+      "get": {
+        "tags": [
+          "API: Reports"
+        ],
+        "summary": "query rate report",
+        "description": "get the number of queries per domain and day for the given month or day  as CSV or JSON.\n\nNote: either month or day must be provided. Month must be provided in format YYYY-MM, day must be provided in the format YYYY-MM-DD. For example: month=2022-12, or day=2022-12-31.",
+        "operationId": "QueryRateReport",
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "string",
+              "example": "2018-02"
+            }
+          },
+          {
+            "name": "day",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "string",
+              "example": "2018-02-01"
+            }
+          },
+          {
+            "name": "include_nx",
+            "in": "query",
+            "description": "set to 1 to add the number of NX queries to the report. Defaults to '0'",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "boolean",
+              "example": "1"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "output format, either `csv` or `json` . Defaults to 'csv'",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "string",
+              "example": "csv"
+            }
+          } 
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "example": "date,\"zone\",\"queries\"\n2018-02-01,\"testzone1.at\",\"96\"\n2018-02-01,\"testzone2.at\",\"2374\"\n2018-02-02,\"testzone1.at\",\"146\"\n2018-02-02,\"testzone2.at\",\"4326\"\n2018-02-03,\"testzone1.at\",\"124\"\n2018-02-03,\"testzone2.at\",\"23474\""
+                }
+              },
+              "application/json": {
+                "schema": {
+                    "$ref": "#/components/schemas/QueryRateReportResponse"
+                },
+                "example":  [
+                    {"date":"2025-02-14","domain":"testzone2.at","querycount":"188748","nx_querycount":"5184"},
+                    {"date":"2025-02-14","domain":"testzone1.at","querycount":"50349","nx_querycount":"10054"}
+                ]
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v2/reports/domainlist": {
+      "get": {
+        "tags": [
+          "API: Reports"
+        ],
+        "summary": "list of configured domains",
+        "description": "get an unpaginated list of configured domains",
+        "operationId": "DomainListReport",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DomainListReportResponse"
+                },
+                "example": [
+                  { "domain" : "domain1.at",
+                    "serial" : 1},
+                  { "domain" : "domain2.at",
+                    "serial" : 20220126}
+                ]
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/acme/{zone}": {
+      "get": {
+        "tags": [
+          "API: ACME"
+        ],
+        "summary": "Checks if zone is configured or not",
+        "description": "",
+        "operationId": "CheckACMEZoneExists",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                     "type": "string",
+                     "example": "found"
+                  }
+                },
+                "example":  [ "found" ]
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    },
+    "/api/v1/acme/zones/{zone}/rrsets": {
+      "get": {
+        "tags": [
+          "API: ACME"
+        ],
+        "summary": "Get RRset for configured zone",
+        "description": "get the RRsets for given zone.",
+        "operationId": "GetRrsets",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "request given page",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "integer",
+              "example": 1,
+              "default": 1,
+              "minimum": 1
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "description": "change the number of items per page. Default 100",
+            "style": "form",
+            "explode": true,
+            "schema": {
+              "type": "integer",
+              "example": 200,
+              "default": 100,
+              "minimum": 1,
+              "maximum": 10000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetRRsets"
+                },
+                "example": {
+                  "current_page": 1,
+                  "data": [
+                    {
+                      "name": ".acme-challenge.testzone1.at.",
+                      "type": "TXT",
+                      "ttl": 60,
+                      "records": [
+                        {
+                          "content": "mydns01challenge",
+                          "disabled": false
+                        }
+                      ]
+                    }
+                  ],
+                  "from": 1,
+                  "last_page": 1,
+                  "next_page_url": "null",
+                  "path": "https://my.rcodezero.at/api/v2/zones/testzone1.at/rrsets",
+                  "per_page": 100,
+                  "prev_page_url": "null",
+                  "to": 2,
+                  "total": 2
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      },
+      "patch": {
+        "tags": [
+          "API: ACME"
+        ],
+        "summary": "add or delete ACME challenge",
+        "description": "add or remove a '_acme-challenge.' TXT label to/from the zone. Updateing other labels will result in an error.",
+        "operationId": "Add/deleteACMERrsets",
+        "parameters": [
+          {
+            "name": "zone",
+            "in": "path",
+            "description": "name of the zone",
+            "required": true,
+            "style": "simple",
+            "explode": false,
+            "schema": {
+              "type": "string",
+              "example": "testzone1.at"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/UpdateRRsetRequest"
+                },
+                "description": ""
+              },
+              "example": [
+                {
+                  "name": "_acme-challenge.testzone1.at.",
+                  "type": "TXT",
+                  "ttl": 86400,
+                  "changetype": "add",
+                  "records": [
+                    {
+                      "content": "mydns01challenge"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateRRsetResponse"
+                },
+                "example": {
+                  "status": "ok",
+                  "message": "RRsets updated"
+                }
+              }
+            }
+          }
+        },
+        "deprecated": false
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AddNewZoneRequest": {
+        "title": "AddNewZoneRequest",
+        "required": [
+          "domain",
+          "type"
+        ],
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string",
+            "description": "Domain to be added"
+          },
+          "type": {
+            "$ref": "#/components/schemas/type2"
+          },
+          "masters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List (Array) of IP address(es) of primary nameserver(s) providing the zones for Rcode0"
+          },
+          "cds_cdnskey_publish": {
+            "type": "boolean",
+            "description": "enable/disable the publication of CDS/CDNSKEY records (RFC 7344)",
+            "example": "false"
+          },
+          "serial_auto_increment": {
+            "type": "boolean",
+            "description": "enable/disable auto increment for serial when performing RRSET updates (default true if not provided), only valid for primary zones",
+            "example": "false"
+          }
+        },
+        "example": {
+          "domain": "testzone1.at",
+          "type": "slave",
+          "masters": [
+            "193.0.2.2",
+            "2001:db8::2"
+          ]
+        }
+      },
+      "AddZoneResponse": {
+        "title": "AddZoneResponse",
+        "required": [
+          "status",
+          "message",
+          "nsset",
+          "outbound_xfr_host"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string"
+          },
+          "nsset": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Rcode0 nsset configured for zone"
+          },
+          "outbound_xfr_host": {
+            "type": "object",
+            "properties": {
+              "ips": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "port": {
+                "type": "integer"
+              }
+            },
+            "description": "ip addresses and port to be used for outbound zone transfer"
+          },
+          "dnssec_dnskey": {
+            "type": "string",
+            "description": "DNSKEY record for the used KSK"
+          },
+          "dnssec_ds": {
+            "type": "string",
+            "description": "DS record for the used KSK"
+          }
+        }
+      },
+      "ListZones": {
+        "title": "ListZones",
+        "required": [
+          "current_page",
+          "data",
+          "from",
+          "last_page",
+          "next_page_url",
+          "path",
+          "per_page",
+          "prev_page_url",
+          "to",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "current_page": {
+            "type": "number",
+            "description": "number of the currently displayed page",
+            "example": 1
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Zones"
+            },
+            "description": "array of zone objects"
+          },
+          "from": {
+            "type": "number",
+            "description": "number of first object",
+            "example": 1
+          },
+          "last_page": {
+            "type": "number",
+            "description": "total number of pages",
+            "example": 1
+          },
+          "next_page_url": {
+            "type": "string",
+            "description": "Url for the next page",
+            "nullable": true,
+            "example": "null"
+          },
+          "path": {
+            "type": "string",
+            "description": "current path",
+            "example": "https://my.rcodezero.at/api/v2/zones"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "number of items per page",
+            "example": 100
+          },
+          "prev_page_url": {
+            "type": "string",
+            "description": "URL to the previous page",
+            "nullable": true,
+            "example": "null"
+          },
+          "to": {
+            "type": "number",
+            "description": "number of the last object on this page",
+            "example": 2
+          },
+          "total": {
+            "type": "number",
+            "description": "total number of objects",
+            "example": 2
+          }
+        },
+        "example": {
+          "current_page": 1,
+          "data": [
+            {
+              "id": 543728,
+              "domain": "testzone144.at",
+              "type": "SLAVE",
+              "dnssec": "no",
+              "created": "2019-09-11T11:43:31Z",
+              "last_check": null,
+              "serial": null,
+              "masters": [
+                "193.0.2.2",
+                "2001:db8::2"
+              ],
+              "nsset": [
+                "sec1.rcode0.net",
+                "sec2.rcode0.net"
+              ],
+              "outbound_xfr_host": {
+                "ips": [
+                  "83.136.34.31",
+                  "2a02:850:8::31"
+                ],
+                "port": 53
+              },
+              "zone_disabled": null
+            }
+          ],
+          "from": 1,
+          "last_page": 1,
+          "next_page_url": "null",
+          "path": "https://my.rcodezero.at/api/v2/zones",
+          "per_page": 100,
+          "prev_page_url": "null",
+          "to": 2,
+          "total": 2
+        }
+      },
+      "Zones": {
+        "title": "Zones",
+        "required": [
+          "id",
+          "domain",
+          "type",
+          "dnssec",
+          "created",
+          "last_check",
+          "serial",
+          "masters",
+          "nsset",
+          "outbound_xfr_host",
+          "zone_disabled"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "Unique identifier for this zone",
+            "example": 2740873
+          },
+          "domain": {
+            "type": "string",
+            "description": "name of zone",
+            "example": "testzone1.at"
+          },
+          "type": {
+            "$ref": "#/components/schemas/type"
+          },
+          "dnssec": {
+            "$ref": "#/components/schemas/dnssec"
+          },
+          "created": {
+            "type": "string",
+            "description": "timestamp when zone was added to RcodeZero Anycast Network",
+            "example": "2018-04-09T09:27:31Z"
+          },
+          "last_check": {
+            "type": "string",
+            "description": "timestamp when zone serial has been checked last time on master server, null for master zones",
+            "nullable": true,
+            "example": "null"
+          },
+          "serial": {
+            "type": "number",
+            "description": "current serial on RcodeZero Anycast Network",
+            "nullable": true,
+            "example": 20180411
+          },
+          "masters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "configured IP address(es) of master server(s) for slave zones, empty array for master zones"
+          },
+          "nsset": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "provisioned name server set"
+          },
+          "outbound_xfr_host": {
+            "type": "object",
+            "properties": {
+              "ips": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "port": {
+                "type": "integer",
+                "example": 53
+              }
+            },
+            "description": "ip addresses and port to be used for outbound zone transfer"
+          },
+          "zone_disabled": {
+            "type": "boolean",
+            "description": "disabled zones remain configured but will not be visible in the DNS",
+            "example": "false"
+          }
+        }
+      },
+      "ZoneDetails": {
+        "title": "ZoneDetails",
+        "required": [
+          "id",
+          "domain",
+          "type",
+          "masters",
+          "serial",
+          "created",
+          "last_check",
+          "dnssec_status",
+          "dnssec_status_detail",
+          "nsset",
+          "outbound_xfr_host",
+          "zone_disabled",
+          "cds_cdnskey_publish",
+          "serial_auto_increment"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "Unique identifier for this zone",
+            "example": 2740873
+          },
+          "domain": {
+            "type": "string",
+            "description": "name of zone",
+            "example": "testzone1.at"
+          },
+          "type": {
+            "$ref": "#/components/schemas/type"
+          },
+          "masters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "configured ip address(es) of master server(s) for slave zones, empty array for master zones"
+          },
+          "serial": {
+            "type": "number",
+            "description": "current serial on RcodeZero Anycast Network",
+            "nullable": true,
+            "example": 20180411
+          },
+          "serialincoming": {
+            "type": "number",
+            "description": "incoming serial of the secondary zone (optional, only for secondary zones)",
+            "nullable": true,
+            "example": 20180411
+          },
+          "created": {
+            "type": "string",
+            "description": "timestamp when zone was added to RcodeZero Anycast Network",
+            "example": "2018-04-09T09:27:31Z"
+          },
+          "last_check": {
+            "type": "string",
+            "description": "timestamp of last serial number zone check on master server (for slave domains), null for master zones",
+            "nullable": true,
+            "example": "null"
+          },
+          "dnssec_status": {
+            "$ref": "#/components/schemas/dnssec_status"
+          },
+          "dnssec_status_detail": {
+            "type": "string",
+            "description": "verbose details about DNSSEC status",
+            "example": "Signed with NSEC3, no opt-out (RSASHA256 with 2048 bits KSK and 1024 bits ZSK)"
+          },
+          "dnssec_ksk_status": {
+            "type": "string",
+            "description": "state of DNSSEC signing",
+            "example": "Initial signing phase (waiting for ACK)"
+          },
+          "dnssec_ksk_status_detail": {
+            "type": "string",
+            "description": "verbose text about DNSSEC status",
+            "example": "The new keys are safe to be published in the parent zone. Please submit the DNSKEY/DS key to the parent zone and acknowledge the submission by pressing the 'Acknowledge' button."
+          },
+          "dnssec_ksk_unacknowledged": {
+            "type": "boolean",
+            "description": "`true` if the acknowledge of the submission from the DNSKEY/DS to the parent zone is missing",
+            "example": false
+          },
+          "dnssec_ds": {
+            "type": "string",
+            "description": "DS records for the used signing key, to be added to the parent zone",
+            "example": "testzone1.at. IN DS 60295 8 2 A7833EF91642D145DBF6384D5394767E417AB056BECDAEA3E33EBD80B3387BE3"
+          },
+          "dnssec_ds_first_seen": {
+            "type": "string",
+            "description": "Timestamp when the DS of the current KSK was first seen by RcodeZero in the zone's parent zone. Null, if the DS was not seen yet.",
+            "example": "2023-04-04T07:10:03Z"
+          },
+          "dnssec_dnskey": {
+            "type": "string",
+            "description": "DNSKEY record for the used signing key",
+            "example": "testzone1.at. IN DNSKEY 257 3 8 AwEAAZ3vhxR1HWAByWlLoLr0gkXMPqgmO1MwUSU71nnXKynO0Hj+Uacv 5co9EyhdB2Y9qoNqr7604aV5a9Gpw6eA5SFtaLGfj/C1blvfQt2knByZ nAQcc/88Hze3YiS5UfCn24fBGUtW1ti4s9SONLV2fj9tvcg1qUmhH6kX mQjPUSYYRJqdPX3Zb0GgdozIG9TTNFXmoNKgw5yGi5zMBjGIead4Nfaa cdyqD5Wm4pBJFHOsxkT7+LqExokZW3MB48fSY0TlV9BgIQ4OCjPwyC2I lub0wZK/pcYD+1bTMOzYYycJyB4jRO5TZ1/fRYPxop2295GY85d5vbMH +m8TJLzEsV8= ; key id = 60295"
+          },
+          "dnssec_safe_to_unsign": {
+            "$ref": "#/components/schemas/dnssec_safe_to_unsign"
+          },
+          "dnssec_zsks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/dnssec_zsk"
+            }
+          },
+          "dnssec_zsk_next_key_event": {
+              "type": "string",
+              "description": "timestamp after that the next ZSK key event will occure (this is done automatically by Rcode0)"
+          },
+          "nsset": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "provisioned name server set"
+          },
+          "outbound_xfr_host": {
+            "type": "object",
+            "properties": {
+              "ips": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "port": {
+                "type": "integer",
+                "example": 53
+              }
+            },
+            "description": "ip addresses and port to be used for outbound zone transfer"
+          },
+          "zone_disabled": {
+            "type": "boolean",
+            "description": "disabled zones remain configured but will not be visible in the DNS",
+            "example": "false"
+          },
+          "cds_cdnskey_publish": {
+            "type": "boolean",
+            "description": "the publication of CDS/CDNSKEY records (RFC 7344) is enabled/disabled",
+            "example": "false"
+          },
+          "serial_auto_increment": {
+            "type": "boolean",
+            "description": "enable/disable incrementation of the serial after RRSET updates (only for primary zones)",
+            "example": "false"
+          }
+        },
+        "example": {
+          "id": 2740873,
+          "domain": "testzone1.at",
+          "type": "SLAVE",
+          "masters": [
+            "193.0.2.2",
+            "2001:db8::2"
+          ],
+          "serial": 20180411,
+          "last_check": "null",
+          "dnssec_status": "Signed",
+          "dnssec_status_detail": "Signed with NSEC3, no opt-out (RSASHA256 with 2048 bits KSK and 1024 bits ZSK)",
+          "dnssec_ksk_status": "Initial signing phase (waiting for ACK)",
+          "dnssec_ksk_status_detail": "The new keys are safe to be published in the parent zone. Please submit the DNSKEY/DS key to the parent zone and acknowledge the submission by pressing the 'Acknowledge' button.",
+          "dnssec_ksk_unacknowledged": true,
+          "dnssec_ds": "testzone1.at. IN DS 60295 8 2 A7833EF91642D145DBF6384D5394767E417AB056BECDAEA3E33EBD80B3387BE3",
+          "dnssec_dnskey": "testzone1.at. IN DNSKEY 257 3 8 AwEAAZ3vhxR1HWAByWlLoLr0gkXMPqgmO1MwUSU71nnXKynO0Hj+Uacv 5co9EyhdB2Y9qoNqr7604aV5a9Gpw6eA5SFtaLGfj/C1blvfQt2knByZ nAQcc/88Hze3YiS5UfCn24fBGUtW1ti4s9SONLV2fj9tvcg1qUmhH6kX mQjPUSYYRJqdPX3Zb0GgdozIG9TTNFXmoNKgw5yGi5zMBjGIead4Nfaa cdyqD5Wm4pBJFHOsxkT7+LqExokZW3MB48fSY0TlV9BgIQ4OCjPwyC2I lub0wZK/pcYD+1bTMOzYYycJyB4jRO5TZ1/fRYPxop2295GY85d5vbMH +m8TJLzEsV8= ; key id = 60295",
+          "dnssec_zsk": {
+            "key": "testzone1.at. IN DNSKEY 256 3 13 OPSCFURNgFno0d5bOpBDFtE+404HCdbEzQp6HM2kxdyZwe1Rc4bzpaXr STv6YxIe3WBhU/GbG6S+I9aGe9kT6w==",
+            "keyid": 36834,
+            "active": true
+          },
+          "cds_cdnskey_publish": false
+        }
+      },
+      "UpdateZoneRequest": {
+        "title": "UpdateZoneRequest",
+        "type": "object",
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/type2"
+          },
+          "masters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List (Array) of IP address(es) of master nameserver(s) providing the slave zones for RcodeZero"
+          },
+          "cds_cdnskey_publish": {
+            "type": "boolean",
+            "description": "enable/disable the publication of CDS/CDNSKEY records (RFC 7344)",
+            "example": "false"
+          },
+          "serial_auto_increment": {
+            "type": "boolean",
+            "description": "enable/disable the incrementation of the serial after RRSET updates (only valid for primary zones)",
+            "example": "false"
+          }
+        },
+        "example": {
+          "masters": [
+            "193.0.2.2",
+            "2001:db8::2"
+          ]
+        }
+      },
+      "UpdateZoneResponse": {
+        "title": "UpdateZoneResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Zone testzone1.at successfully updated"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Zone testzone1.at successfully updated"
+        }
+      },
+      "PatchZoneRequest": {
+        "title": "PatchZoneRequest",
+        "type": "object",
+        "properties": {
+          "zone_disabled": {
+            "type": "boolean",
+            "description": ""
+          }
+        },
+        "example": {
+          "zone_disabled": true
+        }
+      },
+      "PatchZoneResponse": {
+        "title": "PatchZoneResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "zone_disabled has been set"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "zone_disabled has been set"
+        }
+      },
+      "DeleteZoneResponse": {
+        "title": "DeleteZoneResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Zone testzone1.at successfully removed"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Zone testzone1.at successfully removed"
+        }
+      },
+      "ZoneTransferResponse": {
+        "title": "ZoneTransferResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Zonetransfer for zone testzone1.at queued"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Zonetransfer for zone testzone1.at queued"
+        }
+      },
+      "GetRRsets": {
+        "title": "GetRRsets",
+        "required": [
+          "current_page",
+          "data",
+          "from",
+          "last_page",
+          "next_page_url",
+          "path",
+          "per_page",
+          "prev_page_url",
+          "to",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "current_page": {
+            "type": "number",
+            "description": "number of the current displayed page",
+            "example": 1
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RRSets"
+            },
+            "description": "array of rrset objects"
+          },
+          "from": {
+            "type": "number",
+            "description": "number of first object",
+            "example": 1
+          },
+          "last_page": {
+            "type": "number",
+            "description": "total number of pages",
+            "example": 1
+          },
+          "next_page_url": {
+            "type": "string",
+            "description": "Url for the next page",
+            "nullable": true,
+            "example": "null"
+          },
+          "path": {
+            "type": "string",
+            "description": "current path",
+            "example": "https://my.rcodezero.at/api/v2/zones/{zone}/rrsets"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "number of items per page",
+            "example": 100
+          },
+          "prev_page_url": {
+            "type": "string",
+            "description": "URL to the previous page",
+            "nullable": true,
+            "example": "null"
+          },
+          "to": {
+            "type": "number",
+            "description": "number of the last object on this page",
+            "example": 2
+          },
+          "total": {
+            "type": "number",
+            "description": "total number of objects",
+            "example": 2
+          }
+        },
+        "example": {
+          "current_page": 1,
+          "data": [
+            {
+              "name": "testzone2.at.",
+              "type": "SOA",
+              "ttl": 3600,
+              "records": [
+                {
+                  "content": "sec1.rcode0.net. rcodezero-soa.ipcom.at. 2019100207 10800 3600 604800 3600",
+                  "disabled": false
+                }
+              ]
+            },
+            {
+              "name": "testzone2.at.",
+              "type": "NS",
+              "ttl": 3600,
+              "records": [
+                {
+                  "content": "sec2.rcode0.net.",
+                  "disabled": false
+                },
+                {
+                  "content": "sec1.rcode0.net.",
+                  "disabled": false
+                }
+              ]
+            }
+          ],
+          "from": 1,
+          "last_page": 1,
+          "next_page_url": "null",
+          "path": "https://my.rcodezero.at/api/v2/zones/{zone}/rrsets",
+          "per_page": 100,
+          "prev_page_url": "null",
+          "to": 2,
+          "total": 2
+        }
+      },
+      "RRSets": {
+        "title": "RRSets",
+        "required": [
+          "name",
+          "type",
+          "ttl",
+          "records"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "name of label",
+            "example": "www.testzone1.at."
+          },
+          "type": {
+            "type": "string",
+            "description": "record type",
+            "example": "A"
+          },
+          "ttl": {
+            "type": "number",
+            "description": "ttl",
+            "example": 3600
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record"
+            },
+            "description": "array of record objects"
+          }
+        }
+      },
+      "Record": {
+        "title": "Record",
+        "required": [
+          "content",
+          "disabled"
+        ],
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "content of record",
+            "example": "10.10.0.2"
+          },
+          "disabled": {
+            "type": "boolean",
+            "description": "disabled: true means, records is in database but not visible in the DNS",
+            "example": false
+          }
+        }
+      },
+      "UpdateRRsetRequest": {
+        "title": "UpdateRRsetRequest",
+        "required": [
+          "name",
+          "type",
+          "ttl",
+          "changetype"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "www.testzone1.at."
+          },
+          "type": {
+            "type": "string",
+            "example": "A"
+          },
+          "ttl": {
+            "type": "number",
+            "example": 86400
+          },
+          "changetype": {
+            "$ref": "#/components/schemas/changetype"
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Record"
+            },
+            "description": ""
+          }
+        },
+        "example": {
+          "name": "www.testzone1.at.",
+          "type": "A",
+          "ttl": 86400,
+          "changetype": "add",
+          "records": [
+            {
+              "content": "10.10.0.1"
+            }
+          ]
+        }
+      },
+      "UpdateRRsetResponse": {
+        "title": "UpdateRRsetResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "RRsets updated"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "RRsets updated"
+        }
+      },
+      "ReplaceRRsetRequest": {
+        "title": "ReplaceRRsetRequest",
+        "required": [
+          "rrsets"
+        ],
+        "type": "object",
+        "properties": {
+            "rrsets": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/RRSets"
+              },
+              "description": "array of rrset objects"
+          }
+        }
+      },
+      "ReplaceRRsetResponse": {
+        "title": "ReplaceRRsetResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "RRsets replaced"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "RRsets replaced"
+        }
+      },
+      "DeleteRRsetResponse": {
+        "title": "DeleteRRsetResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "all RRsets (expect SOA and NS) removed"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "all RRsets (expect SOA and NS) removed"
+        }
+      },
+      "ZoneOutboundResponse": {
+        "title": "ZoneOutboundResponse",
+        "required": [
+          "secondaries",
+          "tsigkey"
+        ],
+        "type": "object",
+        "properties": {
+          "secondaries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "list of configured secondary nameservers, empty array if none"
+          },
+          "tsigkey": {
+            "type": "string",
+            "description": "name of TSIG-key, empty if none",
+            "example": "mytsigkey"
+          }
+        },
+        "example": {
+          "secondaries": [
+            "193.0.2.2",
+            "2001:db8::2"
+          ],
+          "tsigkey": "mytsigkey"
+        }
+      },
+      "ZoneInboundResponse": {
+        "title": "ZoneInboundResponse",
+        "required": [
+          "tsigkey"
+        ],
+        "type": "object",
+        "properties": {
+          "tsigkey": {
+            "type": "string",
+            "description": "name of TSIG-key, empty if none",
+            "example": "mytsigkey"
+          }
+        },
+        "example": {
+          "tsigkey": "mytsigkey"
+        }
+      },
+      "UpdateZoneOutboundRequest": {
+        "title": "UpdateZoneOutboundRequest",
+        "required": [
+          "secondaries",
+          "tsigkey"
+        ],
+        "type": "object",
+        "properties": {
+          "secondaries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "list of secondary nameservers, empty array if none (removes any configured nameservers)"
+          },
+          "tsigkey": {
+            "type": "string",
+            "description": "<name> must be a prefconfigured TSIG key, empty of none (removes any configured TSIG key and default account TSIG key will become active), the actual config (including default account settings) is included in the repsonse.",
+            "example": "mytsigkey"
+          }
+        }
+      },
+      "UpdateZoneOutboundResponse": {
+        "title": "UpdateZoneOutboundResponse",
+        "required": [
+          "status",
+          "message",
+          "secondaries",
+          "tsigkey"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Outbound transfer settings have been updated"
+          },
+          "secondaries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "list of configured secondary nameservers, empty array if none"
+          },
+          "tsigkey": {
+            "type": "string",
+            "description": "name of TSIG key",
+            "example": "mystigkey"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Outbound transfer settings have been updated",
+          "secondaries": [
+            "193.0.2.2",
+            "2001:db8::2"
+          ],
+          "tsigkey": "mystigkey"
+        }
+      },
+      "DeleteZoneOutboundResponse": {
+        "title": "DeleteZoneOutboundResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Outbound transfer settings have been deleted"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Outbound transfer settings have been deleted"
+        }
+      },
+      "UpdateZoneInboundRequest": {
+        "title": "UpdateZoneInboundRequest",
+        "required": [
+          "tsigkey"
+        ],
+        "type": "object",
+        "properties": {
+          "tsigkey": {
+            "type": "string",
+            "description": "<name> must be a prefconfigured TSIG key",
+            "example": "mytsigkey"
+          }
+        }
+      },
+      "UpdateZoneInboundResponse": {
+        "title": "UpdateZoneInboundResponse",
+        "required": [
+          "status",
+          "message",
+          "tsigkey"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Inbound transfer settings have been updated"
+          },
+          "tsigkey": {
+            "type": "string",
+            "description": "name of TSIG key",
+            "example": "mystigkey"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Inbound transfer settings have been updated",
+          "tsigkey": "mystigkey"
+        }
+      },
+      "DeleteZoneInboundResponse": {
+        "title": "DeleteZoneInboundResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Inbound transfer settings have been deleted"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Inbound transfer settings have been deleted"
+        }
+      },
+      "SignZoneResponse": {
+        "title": "SignZoneResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Zone testzone1.at signed successfully"
+          },
+          "dnssec_dnskey": {
+            "type": "string",
+            "example": "testzone1.at. IN DNSKEY 257 3 8 AwEAAcAJz7w+VKM0rR49FdcXnz5qZ4x42cLXCOvyHDpkYb/4nEoDseVC KDhlXDqS/d80EXi8DxG4JAhalj/vesHnGQ83Mfhkxb8N7LwYvc0Mqy8C dNwOg4Fw+i1Xsa+xgqBBFcY89l1wneVqWio03TcvMm7RZmpnkiwmnCtH rtVvf0q3LINRFWhkeGwkqLER4FGc3R74wXOTHMSmH5BYBW/W7tuGv10f 2V9rafbTP982v8scLt7sdePnZ/aIa0gJUSF+YNy2aGaYzeSH/Q6s9D1u hlbptqoUptpTyTHwcnDcML2JcyprHCDQCKN+4coJf+74k1MVrcDkCuOe 27DbS/rV7HU= ; key id = 16747"
+          },
+          "dnssec_ds": {
+            "type": "string",
+            "example": "testzone1.at. IN DS 16747 8 2 A6F8C5136E23E96094A13A5496D179BF74CE45B5B7C24EE4CF1371A1248E60B2"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Zone testzone1.at signed successfully"
+        }
+      },
+      "SimulateDNSSECdsseenResponse": {
+        "title": "SimulateDNSSECdsseenResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "simulate ok: Simulated DSSSEN. Had to update 1 keys for zone 'testzone1.at'"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "simulate ok: Simulated DSSSEN. Had to update 1 keys for zone 'testzone1.at'"
+        }
+      },
+      "SimulateDNSSECdsremovedResponse": {
+        "title": "SimulateDNSSECdsremovedResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "simulate ok: Simulated DSREMOVED. Had to update 1 keys for zone 'testzone1.at'"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "simulate ok: Simulated DSREMOVED. Had to update 1 keys for zone 'testzone1.at'"
+        }
+      },
+      "StartKeyRolloverResponse": {
+        "title": "StartKeyRolloverResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Key rollover started successfully."
+          }
+        }
+      },
+      "DSAckResponse": {
+        "title": "DSAckResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Acknowledged KSK for domain 'testzone1.at'."
+          }
+        }
+      },
+      "UnsignZoneResponse": {
+        "title": "UnsignZoneResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Zone testzone2.at unsigned successfully"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Zone testzone2.at unsigned successfully"
+        }
+      },
+      "ListMessages": {
+        "title": "ListMessages",
+        "required": [
+          "current_page",
+          "data",
+          "from",
+          "last_page",
+          "next_page_url",
+          "path",
+          "per_page",
+          "prev_page_url",
+          "to",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "current_page": {
+            "type": "number",
+            "description": "number of the currently displayed page",
+            "example": 1
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/pollmessagefrommessagequeue"
+            },
+            "description": "array of message queue objects"
+          },
+          "from": {
+            "type": "number",
+            "description": "number of first object",
+            "example": 1
+          },
+          "last_page": {
+            "type": "number",
+            "description": "total number of pages",
+            "example": 1
+          },
+          "next_page_url": {
+            "type": "string",
+            "description": "Url for the next page",
+            "nullable": true,
+            "example": "null"
+          },
+          "path": {
+            "type": "string",
+            "description": "current path",
+            "example": "https://my.rcodezero.at/api/v2/messages/list"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "number of items per page",
+            "example": 100
+          },
+          "prev_page_url": {
+            "type": "string",
+            "description": "URL to the previous page",
+            "nullable": true,
+            "example": "null"
+          },
+          "to": {
+            "type": "number",
+            "description": "number of the last object on this page",
+            "example": 2
+          },
+          "total": {
+            "type": "number",
+            "description": "total number of objects",
+            "example": 2
+          }
+        },
+        "example": {
+          "current_page": 1,
+          "data": [
+            {
+                "id": 1,
+                "domain": "test.at",
+                "type": "DSUPDATE",
+                "comment": "Insert or replace DS record in the parent zone.",
+                "date": "2021-05-01T07:37:04Z"
+            },
+            {
+                "id": 2,
+                "domain": "test.at",
+                "type": "DSREMOVED",
+                "comment": "DS record has been removed from the parent zone.",
+                "date": "2021-05-05T17:37:04Z"
+            },
+            {
+                "id": 3,
+                "domain": "foo.bar",
+                "type": "DSREMOVED",
+                "comment": "DS record has been removed from the parent zone.",
+                "date": "2021-04-05T11:22:14Z"
+            }
+          ],
+          "from": 1,
+          "last_page": 1,
+          "next_page_url": "null",
+          "path": "https://my.rcodezero.at/api/v2/zones",
+          "per_page": 100,
+          "prev_page_url": "null",
+          "to": 2,
+          "total": 2
+        }
+      },
+      "pollmessagefrommessagequeue": {
+        "title": "pollmessagefrommessagequeue",
+        "required": [
+          "id",
+          "domain",
+          "date",
+          "type",
+          "comment"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "Message Id",
+            "example": 56007
+          },
+          "domain": {
+            "type": "string",
+            "description": "Domain name",
+            "example": "testzone2.at"
+          },
+          "date": {
+            "type": "string",
+            "description": "Date when message has been created",
+            "example": "2018-04-09T09:31:14Z"
+          },
+          "type": {
+            "type": "string",
+            "description": "event type",
+            "example": "DSSEEN"
+          },
+          "comment": {
+            "type": "string",
+            "description": "verbose string",
+            "example": "Simulate that the DS record has been seen in the parent zone."
+          }
+        },
+        "example": {
+          "id": 56007,
+          "domain": "testzone2.at",
+          "date": "2018-04-09T09:31:14Z",
+          "type": "DSSEEN",
+          "comment": "Simulate that the DS record has been seen in the parent zone."
+        }
+      },
+      "acknowledgemessageinmessagequeue": {
+        "title": "acknowledgemessageinmessagequeue",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Acknowledged notification '56007'"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Acknowledged notification '56007'"
+        }
+      },
+      "ZoneStatsQueries": {
+        "title": "ZoneStatsQueries",
+        "required": [
+          "date",
+          "qcount",
+          "nxcount"
+        ],
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "date",
+            "example": "2018-3-25"
+          },
+          "qcount": {
+            "type": "number",
+            "description": "total number of queries for this day",
+            "nullable": true,
+            "example": 312355
+          },
+          "nxcount": {
+            "type": "number",
+            "description": "number of queries answered with NXDOMAIN for this day",
+            "nullable": true,
+            "example": 2132
+          }
+        },
+        "example": {
+          "date": "2018-3-25",
+          "qcount": 312355,
+          "nxcount": 2132
+        }
+      },
+      "ZoneStatusResponse": {
+        "title": "ZoneStatusResponse",
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Zone testzone1.at is not disabled"
+          },
+          "zone_disabled": {
+            "type": "boolean",
+            "description": "disabled zones remain configured but will not be visible in the DNS",
+            "example": "false"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Zone testzone1.at is not disabled",
+          "zone_disabled": false
+        }
+      },
+      "ZoneStatsMagnitude": {
+        "title": "ZoneStatsMagnitude",
+        "required": [
+          "date",
+          "mag"
+        ],
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "date",
+            "example": "2018-3-25"
+          },
+          "mag": {
+            "type": "string",
+            "description": "DNS magnitude for this day",
+            "example": "4.2"
+          }
+        },
+        "example": {
+          "date": "2018-3-25",
+          "mag": "4.2"
+        }
+      },
+      "ZoneStatsQname": {
+        "title": "ZoneStatsQname",
+        "required": [
+          "qname",
+          "qtype",
+          "qc"
+        ],
+        "type": "object",
+        "properties": {
+          "qname": {
+            "type": "string",
+            "description": "Query name",
+            "example": "wwww.testzone1.at."
+          },
+          "qtype": {
+            "type": "string",
+            "description": "Query type",
+            "example": "A"
+          },
+          "qc": {
+            "type": "number",
+            "description": "Total number of queries for this Query name (QNAME) + Query type (QTYPE)",
+            "example": 2034555
+          }
+        }
+      },
+      "ZoneStatsNXDomain": {
+        "title": "ZoneStatsNXDomain",
+        "required": [
+          "qname",
+          "qtype",
+          "qc"
+        ],
+        "type": "object",
+        "properties": {
+          "qname": {
+            "type": "string",
+            "description": "Query name",
+            "example": "wwww.testzone1.at."
+          },
+          "qtype": {
+            "type": "string",
+            "description": "Query type",
+            "example": "A"
+          },
+          "qc": {
+            "type": "number",
+            "description": "Number of queries answered with NXDOMAIN for this Query name (QNAME) + Query type (QTYPE)",
+            "example": 2034555
+          }
+        }
+      },
+      "AccountStatsQueries": {
+        "title": "AccountStatsQueries",
+        "required": [
+          "date",
+          "count",
+          "nxcount"
+        ],
+        "type": "object",
+        "properties": {
+          "date": {
+            "type": "string",
+            "description": "date",
+            "example": "2018-02-24"
+          },
+          "count": {
+            "type": "number",
+            "description": "total number of queries for this date",
+            "nullable": true,
+            "example": 3213123
+          },
+          "nxcount": {
+            "type": "number",
+            "description": "number of queries anwered with NXDOMAINs",
+            "nullable": true,
+            "example": 76642
+          }
+        },
+        "example": {
+          "date": "2018-02-24",
+          "count": 3213123,
+          "nxcount": 76642
+        }
+      },
+      "AccountStatsQnames": {
+        "title": "AccountStatsQnames",
+        "required": [
+          "qname",
+          "qtype",
+          "qc",
+          "domain",
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "qname": {
+            "type": "string",
+            "description": "Query name",
+            "example": "www.testzone1.at."
+          },
+          "qtype": {
+            "type": "string",
+            "description": "Query Type",
+            "example": "A"
+          },
+          "qc": {
+            "type": "number",
+            "description": "Total number of queries for this Query name (QNAME) + Query type (QTYPE)",
+            "example": 2034555
+          },
+          "domain": {
+            "type": "string",
+            "description": "authoritative domain for QNAME",
+            "example": "'testzone.at'"
+          },
+          "id": {
+            "type": "number",
+            "description": "id of domain",
+            "example": 213123
+          }
+        }
+      },
+      "AccountStatsNXDomain": {
+        "title": "AccountStatsNXDomain",
+        "required": [
+          "label",
+          "qtype",
+          "qc",
+          "domain",
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "Query name",
+            "example": "nosuchlabel.testzone1.at"
+          },
+          "qtype": {
+            "type": "string",
+            "description": "Query Type",
+            "example": "A"
+          },
+          "qc": {
+            "type": "number",
+            "description": "Number of queries answered with NXDOMAIN for this label (QNAME) + Query type (QTYPE)",
+            "example": 2034
+          },
+          "domain": {
+            "type": "string",
+            "description": "authoritative domain for QNAME",
+            "example": "testzone1.at"
+          },
+          "id": {
+            "type": "number",
+            "description": "id of domain",
+            "example": 213123
+          }
+        }
+      },
+      "AccountStatsTopzones": {
+        "title": "AccountStatsTopzones",
+        "required": [
+          "domain",
+          "qc"
+        ],
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string",
+            "description": "domain name",
+            "example": "testzone1.at"
+          },
+          "qc": {
+            "type": "number",
+            "description": "Number of queries for this domain",
+            "example": 2034
+          }
+        }
+      },
+      "AccountStatsMagnitude": {
+        "title": "AccountStatsMagnitude",
+        "required": [
+          "domain",
+          "mag",
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "domain": {
+            "type": "string",
+            "description": "domain name",
+            "example": "testzone1.at"
+          },
+          "mag": {
+            "type": "number",
+            "description": "DNS magnitude for given day",
+            "example": 4.2
+          },
+          "id": {
+            "type": "number",
+            "description": "id of domain",
+            "example": 324234324
+          }
+        }
+      },
+      "AccountStatsCountries": {
+        "title": "AccountStatsCountries",
+        "required": [
+          "cc",
+          "country",
+          "region",
+          "subregion",
+          "qc"
+        ],
+        "type": "object",
+        "properties": {
+          "cc": {
+            "type": "string",
+            "description": "Two letter country code",
+            "example": "AT"
+          },
+          "country": {
+            "type": "string",
+            "description": "country name",
+            "example": "Austria"
+          },
+          "region": {
+            "type": "string",
+            "description": "region of country",
+            "example": "Europe"
+          },
+          "subregion": {
+            "type": "string",
+            "description": "subregion of country",
+            "example": "Western Europe"
+          },
+          "qc": {
+            "type": "number",
+            "description": "number of queries originated from that country",
+            "example": 10353087
+          }
+        },
+        "example": {
+          "cc": "AT",
+          "country": "Austria",
+          "region": "Europe",
+          "subregion": "Western Europe",
+          "qc": 10353087
+        }
+      },
+      "getglobalaccountsettings": {
+        "title": "getglobalaccountsettings",
+        "required": [
+          "secondaries",
+          "tsigin",
+          "tsigout"
+        ],
+        "type": "object",
+        "properties": {
+          "secondaries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": ""
+          },
+          "tsigin": {
+            "type": "string",
+            "example": "mystigkey"
+          },
+          "tsigout": {
+            "type": "string",
+            "example": "mystigkey"
+          }
+        },
+        "example": {
+          "secondaries": [
+            "10.10.1.2"
+          ],
+          "tsigin": "mystigkey"
+        }
+      },
+      "setglobalaccountsettingsecondariesRequest": {
+        "title": "setglobalaccountsettingsecondariesRequest",
+        "required": [
+          "secondaries"
+        ],
+        "type": "object",
+        "properties": {
+          "secondaries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": ""
+          }
+        },
+        "example": {
+          "secondaries": [
+            "10.10.1.2"
+          ]
+        }
+      },
+      "setglobalaccountsettingsecondaries": {
+        "title": "setglobalaccountsettingsecondaries",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Setting secondaries successfully configured"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Setting secondaries successfully configured"
+        }
+      },
+      "setDefaultTsigKeyRequest": {
+        "title": "setDefaultTsigKeyRequest",
+        "required": [
+          "tsigkey"
+        ],
+        "type": "object",
+        "properties": {
+          "tsigkey": {
+            "type": "string",
+            "example": "my-rcode0-tsigkey"
+          }
+        },
+        "example": {
+          "tsigkey": "my-rcode0-tsigkey"
+        }
+      },
+      "setDefaultTsigKeyResponse": {
+        "title": "setDefaultTsigKeyResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Default TSIG-key successfully configured"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "example": "Default TSIG-key successfully configured"
+        }
+      },
+      "removeDefaultTsigKeyResponse": {
+        "title": "removeDefaultTsigKeyResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Default TSIG-key successfully removed"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "example": "Default TSIG-key successfully removed"}
+      },
+
+      "setglobalaccountsettingtsigKeyoutgoingRequest": {
+        "title": "setglobalaccountsettingtsigKeyoutgoingRequest",
+        "required": [
+          "tsigkey"
+        ],
+        "type": "object",
+        "properties": {
+          "tsigkey": {
+            "type": "string",
+            "example": "mystigkey,hmac-sha256,BqpFrSK+zsvYDJ0oXZzfs3R6VVxabW3RL4GLTM/fm2QGQbvDIUZHWVzNXbAEYOC77EZFC+B4RfrdLE6soeQKUw=="
+          }
+        },
+        "example": {
+          "tsigkey": "mystigkey,hmac-sha256,BqpFrSK+zsvYDJ0oXZzfs3R6VVxabW3RL4GLTM/fm2QGQbvDIUZHWVzNXbAEYOC77EZFC+B4RfrdLE6soeQKUw=="
+        }
+      },
+      "setglobalaccountsettingtsigKeyoutgoing": {
+        "title": "setglobalaccountsettingtsigKeyoutgoing",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Setting tsigout successfully configured"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Setting tsigout successfully configured"
+        }
+      },
+      "DelSettingSecondariesResponse": {
+        "title": "DelSettingSecondariesResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Setting secondaries successfully deleted"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Setting secondaries successfully deleted"
+        }
+      },
+      "DelSettingTsigoutResponse": {
+        "title": "DelSettingTsigoutResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Setting tsigout successfully deleted"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Setting tsigout successfully deleted"
+        }
+      },
+      "removeDefaultInboundTsigKeyResponse": {
+        "title": "removeDefaultInboundTsigKeyResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Default TSIG-key successfully deleted"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Default TSIG-key successfully deleted"
+        }
+      },
+      "Reportsgetproblematiczones": {
+        "title": "Reportsgetproblematiczones",
+        "required": [
+          "current_page",
+          "data",
+          "from",
+          "last_page",
+          "next_page_url",
+          "path",
+          "per_page",
+          "prev_page_url",
+          "to",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "current_page": {
+            "type": "number",
+            "description": "number of the currently displayed page",
+            "example": 1
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Zones"
+            },
+            "description": "array of zone objects"
+          },
+          "from": {
+            "type": "number",
+            "description": "number of first object",
+            "example": 1
+          },
+          "last_page": {
+            "type": "number",
+            "description": "total number of pages",
+            "example": 1
+          },
+          "next_page_url": {
+            "type": "string",
+            "description": "URL of next page",
+            "nullable": true,
+            "example": "null"
+          },
+          "path": {
+            "type": "string",
+            "description": "current path",
+            "example": "https://my.rcodezero.at/api/v2/reports/problematiczones"
+          },
+          "per_page": {
+            "type": "number",
+            "description": "number of items per page",
+            "example": 100
+          },
+          "prev_page_url": {
+            "type": "string",
+            "description": "URL of previous page",
+            "nullable": true,
+            "example": "null"
+          },
+          "to": {
+            "type": "number",
+            "description": "number of the last object on this page",
+            "example": 2
+          },
+          "total": {
+            "type": "number",
+            "description": "total number of objects",
+            "example": 2
+          }
+        },
+        "example": {
+          "current_page": 1,
+          "data": [
+            "Zones"
+          ],
+          "from": 1,
+          "last_page": 1,
+          "next_page_url": "null",
+          "path": "https://my.rcodezero.at/api/v2/reports/problematiczones",
+          "per_page": 100,
+          "prev_page_url": "null",
+          "to": 2,
+          "total": 2
+        }
+      },
+      "ListOutgoingTSIGResponse": {
+        "title": "ListOutgoingTSIGResponse",
+        "required": [
+          "id",
+          "name",
+          "algorithm",
+          "secret"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "unique name of the tsig key",
+            "example": "tsigkey1"
+          },
+          "algorithm": {
+            "$ref": "#/components/schemas/algorithm"
+          },
+          "secret": {
+            "type": "string",
+            "example": "0Ey67Uc57bj0FUlutif3vzCwxxGJsZKzos8Nql7hNS/O1R9cSGVH7i3weq6xuPX9eR2yJoLrxySGzyVV0BRQ5g=="
+          },
+          "default_key": {
+            "$ref": "#/components/schemas/default_key"
+          }
+        },
+        "example": {
+          "id": 288,
+          "name": "tsigkey1",
+          "algorithm": "hmac-md5",
+          "secret": "0Ey67Uc57bj0FUlutif3vzCwxxGJsZKzos8Nql7hNS/O1R9cSGVH7i3weq6xuPX9eR2yJoLrxySGzyVV0BRQ5g=="
+        }
+      },
+      "AddOutgoingTSIGRequest": {
+        "title": "AddOutgoingTSIGRequest",
+        "required": [
+          "id",
+          "name",
+          "algorithm",
+          "secret"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "unique name of the tsig key.i",
+            "example": "tsigkey1"
+          },
+          "algorithm": {
+            "$ref": "#/components/schemas/algorithm"
+          },
+          "secret": {
+            "type": "string",
+            "example": "0Ey67Uc57bj0FUlutif3vzCwxxGJsZKzos8Nql7hNS/O1R9cSGVH7i3weq6xuPX9eR2yJoLrxySGzyVV0BRQ5g=="
+          },
+          "default_key": {
+            "$ref": "#/components/schemas/default_key"
+          }
+        }
+      },
+      "AddOutgoingTSIGResponse": {
+        "title": "AddOutgoingTSIGResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Key 'tsigkey1' successfully added"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Key 'tsigkey1' successfully added"
+        }
+      },
+      "UpdateOutgoingTSIGRequest": {
+        "title": "UpdateOutgoingTSIGRequest",
+        "required": [
+          "algorithm",
+          "secret"
+        ],
+        "type": "object",
+        "properties": {
+          "algorithm": {
+            "$ref": "#/components/schemas/algorithm"
+          },
+          "secret": {
+            "type": "string",
+            "example": "0Ey67Uc57bj0FUlutif3vzCwxxGJsZKzos8Nql7hNS/O1R9cSGVH7i3weq6xuPX9eR2yJoLrxySGzyVV0BRQ5g=="
+          },
+          "default_key": {
+            "title": "default_key",
+            "enum": [
+              0,
+              1
+            ],
+            "type": "integer",
+            "description": "DEPRECATED: indicates if this key is the default key for the account (1) or not (0, default).",
+            "example": 0
+          }
+        }
+      },
+      "UpdateOutgoingTSIGResponse": {
+        "title": "UpdateOutgoingTSIGResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Key 'tsigkey1' successfully updated"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Key 'tsigkey1' successfully updated"
+        }
+      },
+      "DeleteOutgoingTSIGResponse": {
+        "title": "DeleteOutgoingTSIGResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Key 'tsigkey1' successfully removed"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Key 'tsigkey1' successfully removed"
+        }
+      },
+      "ListTSIGResponse": {
+        "title": "ListTSIGResponse",
+        "type": "array",
+        "items": {
+           "$ref": "#/components/schemas/TsigKeyObject"
+        }
+      },
+      "TsigKeyObject": {
+        "title": "TsigKeyObject",
+        "required": [
+          "id",
+          "name",
+          "algorithm",
+          "secret"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "Unique identifier for this TSIG-Key",
+            "example": 27473
+          },
+          "name": {
+            "type": "string",
+            "description": "unique name of the tsig key",
+            "example": "tsigkey1"
+          },
+          "algorithm": {
+            "$ref": "#/components/schemas/algorithm"
+          },
+          "secret": {
+            "type": "string",
+            "example": "0Ey67Uc57bj0FUlutif3vzCwxxGJsZKzos8Nql7hNS/O1R9cSGVH7i3weq6xuPX9eR2yJoLrxySGzyVV0BRQ5g=="
+          }
+        },
+        "example": {
+          "id": 288,
+          "name": "tsigkey1",
+          "algorithm": "hmac-md5",
+          "secret": "0Ey67Uc57bj0FUlutif3vzCwxxGJsZKzos8Nql7hNS/O1R9cSGVH7i3weq6xuPX9eR2yJoLrxySGzyVV0BRQ5g=="
+        }
+      },
+      "AddTSIGRequest": {
+        "title": "AddOutgoingTSIGRequest",
+        "required": [
+          "id",
+          "name",
+          "algorithm",
+          "secret"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "unique name of the tsig key.i",
+            "example": "tsigkey1"
+          },
+          "algorithm": {
+            "$ref": "#/components/schemas/algorithm"
+          },
+          "secret": {
+            "type": "string",
+            "example": "0Ey67Uc57bj0FUlutif3vzCwxxGJsZKzos8Nql7hNS/O1R9cSGVH7i3weq6xuPX9eR2yJoLrxySGzyVV0BRQ5g=="
+          }
+        }
+      },
+      "AddTSIGResponse": {
+        "title": "AddOutgoingTSIGResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Key 'tsigkey1' successfully added"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Key 'tsigkey1' successfully added"
+        }
+      },
+      "UpdateTSIGRequest": {
+        "title": "UpdateOutgoingTSIGRequest",
+        "required": [
+          "algorithm",
+          "secret"
+        ],
+        "type": "object",
+        "properties": {
+          "algorithm": {
+            "$ref": "#/components/schemas/algorithm"
+          },
+          "secret": {
+            "type": "string",
+            "example": "0Ey67Uc57bj0FUlutif3vzCwxxGJsZKzos8Nql7hNS/O1R9cSGVH7i3weq6xuPX9eR2yJoLrxySGzyVV0BRQ5g=="
+          }
+        }
+      },
+      "UpdateTSIGResponse": {
+        "title": "UpdateOutgoingTSIGResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Key 'tsigkey1' successfully updated"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Key 'tsigkey1' successfully updated"
+        }
+      },
+      "DeleteTSIGResponse": {
+        "title": "DeleteOutgoingTSIGResponse",
+        "required": [
+          "status",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/status"
+          },
+          "message": {
+            "type": "string",
+            "example": "Key 'tsigkey1' successfully removed"
+          }
+        },
+        "example": {
+          "status": "ok",
+          "message": "Key 'tsigkey1' successfully removed"
+        }
+      },
+      "algorithm": {
+        "title": "algorithm",
+        "enum": [
+          "hmac-md5",
+          "hmac-sha1",
+          "hmac-sha224",
+          "hmac-sha256",
+          "hmac-sha384",
+          "hmac-sha512"
+        ],
+        "type": "string",
+        "example": "hmac-md5"
+      },
+      "changetype": {
+        "title": "changetype",
+        "enum": [
+          "add",
+          "update",
+          "delete"
+        ],
+        "type": "string",
+        "example": "add"
+      },
+      "default_key": {
+        "title": "default_key",
+        "enum": [
+          0,
+          1
+        ],
+        "type": "integer",
+        "description": "DEPRECATED: indicates if this key is the default key for the account (1) or not (0, default).",
+        "example": 0
+      },
+      "dnssec": {
+        "title": "dnssec",
+        "enum": [
+          "yes",
+          "no",
+          "presigned"
+        ],
+        "type": "string",
+        "description": "is the zone signed by the RcodeZero Anycast Network",
+        "example": "yes"
+      },
+      "dnssec_safe_to_unsign": {
+        "title": "dnssec_safe_to_unsign",
+        "enum": [
+          "yes",
+          "no"
+        ],
+        "type": "string",
+        "description": "To avoid outages caused by a premature DNSSEC removal, RcodeZero rejects unsign operation until the caches are expired. This flag indicates if an unsign action will be allowed at the current time. A zone will become safe to unsign if: there are no pending KSK rollovers, and it can be ensured that the DS disappeared from the resolvers (the date when we last saw the DS + the TTL of the DS + 18hours safty interval for zone propagation delay).",
+        "example": "yes"
+      },
+      "dnssec_status": {
+        "title": "dnssec_status",
+        "enum": [
+          "Signed",
+          "Unsigned",
+          "Pre-Signed"
+        ],
+        "type": "string",
+        "description": "whether or not zone is signed by RcodeZero Anycast",
+        "example": "Signed"
+      },
+      "dnssec_zsk": {
+        "type": "object",
+        "properties": {
+          "key" : {
+            "type": "string",
+            "description":  "current Zone Signing Key used for signing the zone"
+          },
+          "keyid": {
+            "type": "integer",
+            "description": "Key ID of the used ZSK"
+          },
+          "active": {
+            "type": "boolean",
+            "description": "If true, this key will be used for signing"
+          }
+        }
+      },
+      "status": {
+        "title": "status",
+        "enum": [
+          "ok",
+          "failed"
+        ],
+        "type": "string",
+        "example": "ok"
+      },
+      "type": {
+        "title": "type",
+        "enum": [
+          "SLAVE",
+          "MASTER"
+        ],
+        "type": "string",
+        "description": "type of zone",
+        "example": "SLAVE"
+      },
+      "type2": {
+        "title": "type2",
+        "enum": [
+          "slave",
+          "master"
+        ],
+        "type": "string",
+        "example": "slave"
+      },
+      "DomainListReportResponse": {
+        "title": "DomainListReportResponse",
+        "type": "array",
+        "items": {
+           "$ref": "#/components/schemas/DomainListObject"
+        }
+      },
+      "DomainListObject": {
+        "title": "DomainListObject",
+        "required": [
+          "domain",
+          "serial"
+        ],
+        "type": "object",
+        "properties": {
+          "domain" : {
+            "type": "string"
+          },
+          "serial": {
+            "type": "integer"
+          }
+        }
+      },
+      "QueryRateReportResponse": {
+        "title": "QueryRateReportResponse",
+        "type": "array",
+        "items": {
+           "$ref": "#/components/schemas/QueryRateResponseObject"
+        }
+      },
+      "QueryRateResponseObject": {
+        "title": "QueryRateResponseObject",
+        "required": [
+          "date",
+          "domain",
+          "querycount"
+        ],
+        "type": "object",
+        "properties": {
+          "date": {
+            "type" :"string"
+          },
+          "domain" : {
+            "type": "string"
+          },
+          "querycount": {
+            "type": "integer"
+          },
+          "nx_querycount": {
+            "type": "integer"
+          }
+        }
+      },
+      "NXDomainReportResponse": {
+        "title": "NXDomainReportResponse",
+        "type": "array",
+        "items": {
+            "$ref": "#/components/schemas/NXDomainResponseObject"
+        }
+      },
+      "NXDomainResponseObject": {
+        "title": "NXDomainResponseObject",
+        "required": [
+          "date",
+          "domain",
+          "qname",
+          "qtype",
+          "querycount"
+        ],
+        "type": "object",
+        "properties": {
+          "date": {
+            "type" :"string"
+          },
+          "domain" : {
+            "type": "string"
+          },
+          "qname" : {
+            "type": "string"
+          },
+          "qtype" : {
+            "type": "string"
+          },
+          "querycount": {
+            "type": "integer"
+          }
+        }
+      },
+      "AccountingReportResponse": {
+        "title": "AccountingReportResponse",
+        "type": "array",
+        "items": {
+            "$ref": "#/components/schemas/AccountingReportResponseObject"
+        }
+      },
+      "AccountingReportResponseObject": {
+        "title": "AccountingReportResponseObject",
+        "required": [
+          "account",
+          "date",
+          "domain_count",
+          "domain_count_dnssec",
+          "records_count",
+          "query_count"
+        ],
+        "type": "object",
+        "properties": {
+          "account": {
+            "type" :"string"
+          },
+          "date" : {
+            "type": "string"
+          },
+          "domain_count" : {
+            "type": "integer"
+          },
+          "domain_count_dnssec" : {
+            "type": "integer"
+          },
+          "records_count" : {
+            "type": "integer"
+          },
+          "querycount": {
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "httpBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "security": [
+    {
+      "httpBearer": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "API: Zone Management",
+      "description": ""
+    },
+    {
+      "name": "API: TSIG Keys",
+      "description": ""
+    },
+    {
+      "name": "API: Zone Statistics",
+      "description": ""
+    },
+    {
+      "name": "API: Account Statistics",
+      "description": ""
+    },
+    {
+      "name": "API: Message Queue",
+      "description": ""
+    },
+    {
+      "name": "API: Account Settings",
+      "description": ""
+    },
+    {
+      "name": "API: Reports",
+      "description": ""
+    },
+    {
+      "name": "API: ACME",
+      "description": "this endpoints are special endpoints with limited permissions used for dns01-challenge for Let’s Encrypt and the ACME protocol. These endpoints can only be accessed by API tokens with the `ACME`permission and are used by the variuos RcodeZero backend implementaions for Let's Enrypt certificate issuers"
+    }
+  ]
+}
