@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
+from urllib.parse import urlencode
 
 from rc0.client.http import Client
 
@@ -75,6 +76,7 @@ def build_dry_run(
     method: str,
     path: str,
     body: Any = None,
+    params: Mapping[str, Any] | None = None,
     summary: str,
     side_effects: list[str] | None = None,
     extra_headers: Mapping[str, str] | None = None,
@@ -89,6 +91,8 @@ def build_dry_run(
         headers.update(extra_headers)
 
     url = path if path.startswith("http") else f"{client.api_url.rstrip('/')}{path}"
+    if params:
+        url = f"{url}?{urlencode(dict(params), doseq=True)}"
     return DryRunResult(
         request=DryRunRequest(
             method=method,

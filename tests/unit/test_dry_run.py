@@ -43,3 +43,18 @@ def test_dry_run_no_body_omits_content_type() -> None:
         client.close()
     headers = result.to_dict()["request"]["headers"]
     assert "Content-Type" not in headers
+
+
+def test_build_dry_run_appends_params() -> None:
+    client = Client(api_url="https://api.test", token="tk")
+    try:
+        result = build_dry_run(
+            client,
+            method="POST",
+            path="/api/v2/zones",
+            params={"test": 1},
+            summary="Would test-validate zone.",
+        )
+    finally:
+        client.close()
+    assert result.request.url.endswith("?test=1")
