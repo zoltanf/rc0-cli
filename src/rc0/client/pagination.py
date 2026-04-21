@@ -1,8 +1,18 @@
 """Auto-pagination helpers used by read-only list commands.
 
-The RcodeZero API v2 accepts ``page`` (1-indexed) and ``page_size`` query
-parameters on listing endpoints. Responses are JSON arrays; when a page
-returns fewer rows than ``page_size`` we've hit the end.
+The RcodeZero API v2 uses two shapes for listing responses. This module
+speaks both transparently so callers always receive per-page lists of
+dicts regardless of the underlying wire shape.
+
+1. **Laravel pagination envelope** — ``{"data": [...], "current_page": N,
+   "last_page": M, "per_page": K, "total": T, ...}`` — used by
+   ``/api/v2/zones``, ``/zones/{zone}/rrsets``, ``/messages/list``, and
+   ``/reports/problematiczones``.
+2. **Bare JSON array** — used by ``/api/v2/tsig``, ``/stats/querycounts``,
+   ``/stats/topzones``, ``/reports/nxdomains``.
+
+The ``page``/``page_size`` query parameters are authoritative over anything
+in ``params``.
 """
 
 from __future__ import annotations
@@ -27,10 +37,15 @@ def iter_pages(
     params: Mapping[str, Any] | None = None,
     start_page: int = 1,
 ) -> Iterator[list[dict[str, Any]]]:
-    """Yield successive pages until a short page signals the end."""
+    """Yield successive pages as lists of row dicts.
+
+    Handles both the Laravel envelope (stops on ``current_page >= last_page``)
+    and the bare-array shape (stops on a short page).
+    """
     if page_size <= 0:
         msg = f"page_size must be positive, got {page_size}."
         raise ValueError(msg)
+
     page = start_page
     while True:
         query: dict[str, Any] = dict(params) if params else {}
@@ -38,15 +53,31 @@ def iter_pages(
         query["page_size"] = page_size
         response = client.get(path, params=query)
         payload = response.json()
-        if not isinstance(payload, list):
-            raise ServerError(
-                f"Expected JSON array from {path}, got {type(payload).__name__}.",
-                request=RequestSummary(method="GET", url=f"{client.api_url}{path}"),
-            )
-        yield payload
-        if len(payload) < page_size:
-            return
-        page += 1
+
+        if isinstance(payload, dict) and isinstance(payload.get("data"), list):
+            rows = [row for row in payload["data"] if isinstance(row, dict)]
+            yield rows
+            if not rows:
+                return
+            current_page = int(payload.get("current_page", page))
+            last_page = int(payload.get("last_page", current_page))
+            if current_page >= last_page:
+                return
+            page = current_page + 1
+            continue
+
+        if isinstance(payload, list):
+            rows = [row for row in payload if isinstance(row, dict)]
+            yield rows
+            if len(rows) < page_size:
+                return
+            page += 1
+            continue
+
+        raise ServerError(
+            f"Expected JSON array or paginated envelope from {path}, got {type(payload).__name__}.",
+            request=RequestSummary(method="GET", url=f"{client.api_url}{path}"),
+        )
 
 
 def iter_all(
