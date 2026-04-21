@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from rc0.models.tsig import TsigKey
 from rc0.models.zone import Zone, ZoneStatus
 
 
@@ -57,3 +58,20 @@ def test_zone_status_accepts_partial_payload() -> None:
     s = ZoneStatus.model_validate({"zone_disabled": False})
     assert s.zone_disabled is False
     assert s.domain is None
+
+
+def test_tsig_key_parses() -> None:
+    k = TsigKey.model_validate(
+        {"id": 288, "name": "xfr", "algorithm": "hmac-sha256", "secret": "abc=="},
+    )
+    assert k.id == 288
+    assert k.name == "xfr"
+    assert k.algorithm == "hmac-sha256"
+
+
+def test_tsig_key_optional_id() -> None:
+    k = TsigKey.model_validate(
+        {"name": "single", "algorithm": "hmac-sha256", "secret": "zz"},
+    )
+    assert k.id is None
+    assert k.name == "single"
