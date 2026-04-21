@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from typing import TYPE_CHECKING
 
 import pytest
@@ -29,16 +30,42 @@ def isolated_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator
     yield cfg_dir
 
 
-@pytest.fixture(autouse=True)
-def _no_real_keyring(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Prevent tests from accidentally hitting the real OS keyring.
+class _InMemoryKeyring:
+    """Minimal keyring stand-in: in-memory dict, cross-platform, no real OS calls.
 
-    Forces the file-fallback path by making the keyring module look unimportable
-    to ``rc0.auth._keyring_module``.
+    Exposes the three functions rc0.auth uses. Each test gets a fresh store
+    via the ``_fake_keyring`` fixture.
     """
-    import sys
 
-    # If keyring is already imported (from another test), mask it.
-    sys.modules["keyring"] = None  # type: ignore[assignment]
-    yield
-    sys.modules.pop("keyring", None)
+    def __init__(self) -> None:
+        self._store: dict[tuple[str, str], str] = {}
+
+    def set_password(self, service: str, user: str, password: str) -> None:
+        self._store[(service, user)] = password
+
+    def get_password(self, service: str, user: str) -> str | None:
+        return self._store.get((service, user))
+
+    def delete_password(self, service: str, user: str) -> None:
+        if (service, user) not in self._store:
+            raise KeyError((service, user))
+        del self._store[(service, user)]
+
+
+@pytest.fixture(autouse=True)
+def _fake_keyring() -> Iterator[_InMemoryKeyring]:
+    """Swap in an in-memory keyring so tests exercise the keyring code path.
+
+    Without this, tests would either hit the real OS keyring (flaky, leaves
+    state) or the file fallback (which is refused on Windows by design).
+    """
+    fake = _InMemoryKeyring()
+    previous = sys.modules.get("keyring")
+    sys.modules["keyring"] = fake  # type: ignore[assignment]
+    try:
+        yield fake
+    finally:
+        if previous is None:
+            sys.modules.pop("keyring", None)
+        else:
+            sys.modules["keyring"] = previous
