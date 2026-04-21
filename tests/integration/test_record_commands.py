@@ -94,7 +94,9 @@ def test_record_export_bind(cli: CliRunner, isolated_config: Path) -> None:
                         "ttl": 3600,
                         "records": [
                             {
-                                "content": "ns1.example.com. admin.example.com. 1 7200 3600 1209600 3600",
+                                "content": (
+                                    "ns1.example.com. admin.example.com. 1 7200 3600 1209600 3600"
+                                ),
                                 "disabled": False,
                             }
                         ],
