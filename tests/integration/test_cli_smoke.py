@@ -36,8 +36,21 @@ def test_version_command_json(cli: CliRunner, isolated_config: Path) -> None:
 def test_help_shows_command_groups(cli: CliRunner) -> None:
     r = cli.invoke(app, ["--help"])
     assert r.exit_code == 0
-    for group in ("auth", "config", "help", "version"):
-        assert group in r.stdout
+    for group in (
+        "auth",
+        "config",
+        "help",
+        "introspect",
+        "messages",
+        "record",
+        "report",
+        "settings",
+        "stats",
+        "tsig",
+        "version",
+        "zone",
+    ):
+        assert group in r.stdout, f"{group!r} missing from --help"
 
 
 def test_config_show_json(cli: CliRunner, isolated_config: Path) -> None:
@@ -67,3 +80,17 @@ def test_help_topic_authentication(cli: CliRunner, isolated_config: Path) -> Non
 def test_help_topic_unknown_is_not_found(cli: CliRunner, isolated_config: Path) -> None:
     r = cli.invoke(app, ["help", "does-not-exist"])
     assert r.exit_code == 6  # NotFoundError
+
+
+def test_help_topic_pagination(cli: CliRunner, isolated_config: Path) -> None:
+    r = cli.invoke(app, ["help", "pagination"])
+    assert r.exit_code == 0
+    assert "Pagination" in r.stdout
+    assert "--all" in r.stdout
+
+
+def test_help_topic_profiles_and_config(cli: CliRunner, isolated_config: Path) -> None:
+    r = cli.invoke(app, ["help", "profiles-and-config"])
+    assert r.exit_code == 0
+    assert "Profiles" in r.stdout
+    assert "RC0_PROFILE" in r.stdout

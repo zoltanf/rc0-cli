@@ -1,0 +1,210 @@
+"""`rc0 stats` — account + per-zone statistics (Phase 1 read-only surface).
+
+All stats endpoints return bare arrays. None paginate, so these commands
+expose neither ``--page`` nor ``--all``. Deprecated endpoints are hidden
+from ``--help`` and emit a ``[DEPRECATED]`` banner on stderr.
+"""
+
+from __future__ import annotations
+
+from typing import Annotated
+
+import typer
+
+from rc0 import auth as auth_core
+from rc0.api import stats as stats_api
+from rc0.app_state import AppState  # noqa: TC001
+from rc0.client.errors import AuthError
+from rc0.client.http import Client
+from rc0.commands._deprecated import deprecated_warn
+from rc0.output import render
+
+app = typer.Typer(name="stats", help="Account statistics.", no_args_is_help=True)
+zone_app = typer.Typer(name="zone", help="Per-zone statistics.", no_args_is_help=True)
+app.add_typer(zone_app, name="zone")
+
+
+ZoneArg = Annotated[str, typer.Argument(help="Fully-qualified zone apex, e.g. example.com.")]
+
+
+def _client(state: AppState) -> Client:
+    token = state.token
+    if token is None:
+        record = auth_core.load_token(state.profile_name)
+        if record is not None:
+            token = auth_core.token_of(record)
+    if not token:
+        raise AuthError(
+            "No API token available.",
+            hint=f"Run `rc0 auth login` or set RC0_API_TOKEN (profile {state.profile_name!r}).",
+        )
+    return Client(
+        api_url=state.effective_api_url,
+        token=token,
+        timeout=state.effective_timeout,
+    )
+
+
+# ----------------------------------------------------------- top-level (live)
+
+
+@app.command("queries")
+def queries_cmd(ctx: typer.Context) -> None:
+    """Query counts per day. API: GET /api/v2/stats/querycounts"""
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        rows = stats_api.list_querycounts(client)
+    typer.echo(
+        render(
+            [r.model_dump(exclude_none=True) for r in rows],
+            fmt=state.effective_output,
+            columns=["date", "count", "nxcount"],
+        ),
+    )
+
+
+@app.command("topzones")
+def topzones_cmd(ctx: typer.Context) -> None:
+    """Top zones by traffic. API: GET /api/v2/stats/topzones"""
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        rows = stats_api.list_topzones(client)
+    typer.echo(
+        render(
+            [r.model_dump(exclude_none=True) for r in rows],
+            fmt=state.effective_output,
+        ),
+    )
+
+
+@app.command("countries")
+def countries_cmd(ctx: typer.Context) -> None:
+    """Query counts per country. API: GET /api/v2/stats/countries"""
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        rows = stats_api.list_countries(client)
+    typer.echo(
+        render(
+            [r.model_dump(exclude_none=True) for r in rows],
+            fmt=state.effective_output,
+            columns=["cc", "country", "qc", "region", "subregion"],
+        ),
+    )
+
+
+# ----------------------------------------------------- top-level (deprecated)
+
+
+@app.command("topmagnitude", hidden=True)
+def topmagnitude_cmd(ctx: typer.Context) -> None:
+    """[DEPRECATED] Top magnitude. API: GET /api/v2/stats/topmagnitude"""
+    deprecated_warn("rc0 stats topmagnitude")
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        rows = stats_api.list_topmagnitude(client)
+    typer.echo(
+        render(
+            [r.model_dump(exclude_none=True) for r in rows],
+            fmt=state.effective_output,
+        ),
+    )
+
+
+@app.command("topnxdomains", hidden=True)
+def topnxdomains_cmd(ctx: typer.Context) -> None:
+    """[DEPRECATED] Top NXDOMAIN qnames. API: GET /api/v2/stats/topnxdomains"""
+    deprecated_warn("rc0 stats topnxdomains")
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        rows = stats_api.list_topnxdomains(client)
+    typer.echo(
+        render(
+            [r.model_dump(exclude_none=True) for r in rows],
+            fmt=state.effective_output,
+        ),
+    )
+
+
+@app.command("topqnames", hidden=True)
+def topqnames_cmd(ctx: typer.Context) -> None:
+    """[DEPRECATED] Top qnames. API: GET /api/v2/stats/topqnames"""
+    deprecated_warn("rc0 stats topqnames")
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        rows = stats_api.list_topqnames(client)
+    typer.echo(
+        render(
+            [r.model_dump(exclude_none=True) for r in rows],
+            fmt=state.effective_output,
+        ),
+    )
+
+
+# -------------------------------------------------- zone subgroup (live)
+
+
+@zone_app.command("queries")
+def zone_queries_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
+    """Query counts for one zone. API: GET /api/v2/zones/{zone}/stats/queries"""
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        rows = stats_api.list_zone_queries(client, zone)
+    typer.echo(
+        render(
+            [r.model_dump(exclude_none=True) for r in rows],
+            fmt=state.effective_output,
+            columns=["date", "qcount", "nxcount"],
+        ),
+    )
+
+
+# --------------------------------------------- zone subgroup (deprecated)
+
+
+@zone_app.command("magnitude", hidden=True)
+def zone_magnitude_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
+    """[DEPRECATED] Magnitude per zone. API: GET /api/v2/zones/{zone}/stats/magnitude"""
+    deprecated_warn("rc0 stats zone magnitude")
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        rows = stats_api.list_zone_magnitude(client, zone)
+    typer.echo(
+        render(
+            [r.model_dump(exclude_none=True) for r in rows],
+            fmt=state.effective_output,
+            columns=["date", "mag"],
+        ),
+    )
+
+
+@zone_app.command("nxdomains", hidden=True)
+def zone_nxdomains_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
+    """[DEPRECATED] NXDOMAIN qnames per zone.
+
+    API: GET /api/v2/zones/{zone}/stats/nxdomains
+    """
+    deprecated_warn("rc0 stats zone nxdomains")
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        rows = stats_api.list_zone_nxdomains(client, zone)
+    typer.echo(
+        render(
+            [r.model_dump(exclude_none=True) for r in rows],
+            fmt=state.effective_output,
+        ),
+    )
+
+
+@zone_app.command("qnames", hidden=True)
+def zone_qnames_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
+    """[DEPRECATED] Top qnames per zone. API: GET /api/v2/zones/{zone}/stats/qnames"""
+    deprecated_warn("rc0 stats zone qnames")
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        rows = stats_api.list_zone_qnames(client, zone)
+    typer.echo(
+        render(
+            [r.model_dump(exclude_none=True) for r in rows],
+            fmt=state.effective_output,
+        ),
+    )

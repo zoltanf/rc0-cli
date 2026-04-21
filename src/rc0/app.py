@@ -20,6 +20,14 @@ from rc0.client.errors import ConfirmationDeclined, Rc0Error
 from rc0.commands import auth as auth_cmd
 from rc0.commands import config as config_cmd
 from rc0.commands import help as help_cmd
+from rc0.commands import introspect as introspect_cmd
+from rc0.commands import messages as messages_cmd
+from rc0.commands import record as record_cmd
+from rc0.commands import report as report_cmd
+from rc0.commands import settings as settings_cmd
+from rc0.commands import stats as stats_cmd
+from rc0.commands import tsig as tsig_cmd
+from rc0.commands import zone as zone_cmd
 from rc0.config import load_profile
 from rc0.output import OutputFormat, render
 
@@ -34,6 +42,15 @@ app = typer.Typer(
 app.add_typer(auth_cmd.app, name="auth", help="Authenticate with the RcodeZero API.")
 app.add_typer(config_cmd.app, name="config", help="Read and write rc0 configuration.")
 app.add_typer(help_cmd.app, name="help", help="Long-form topic documentation.")
+app.add_typer(messages_cmd.app, name="messages", help="Inspect queued account messages.")
+app.add_typer(record_cmd.app, name="record", help="Manage RRsets.")
+app.add_typer(report_cmd.app, name="report", help="Account-level reports.")
+app.add_typer(settings_cmd.app, name="settings", help="Manage account-level settings.")
+app.add_typer(stats_cmd.app, name="stats", help="Account statistics.")
+app.add_typer(tsig_cmd.app, name="tsig", help="Manage TSIG keys.")
+app.add_typer(zone_cmd.app, name="zone", help="Manage RcodeZero zones.")
+
+introspect_cmd.register(app)
 
 
 OutputOption = Annotated[

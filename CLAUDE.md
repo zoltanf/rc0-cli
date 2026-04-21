@@ -36,8 +36,8 @@ This directory hosts **`rc0`** (PyPI `rc0-cli`), a production-grade Python
 | Phase | Tag | Status |
 |---|---|---|
 | 0 Bootstrap | v0.1.0 | **Done** (2026-04-21). Project skeleton, auth, config, HTTP client, output formatters, topic help. |
-| 1 Read-only | v0.2.0 | Pending — next up. |
-| 2 Mutations with dry-run | v0.3.0 | Pending. |
+| 1 Read-only | v0.2.0 | **Done** (2026-04-21). Every non-deprecated v2 GET reachable as a CLI command; `rc0 introspect`; auto-paginator speaks both envelope and bare-array shapes; contract test gates the release. |
+| 2 Mutations with dry-run | v0.3.0 | Pending — next up. |
 | 3 RRsets | v0.4.0 | Pending. |
 | 4 DNSSEC | v0.5.0 | Pending. |
 | 5 ACME | v0.6.0 | Pending. |
@@ -63,9 +63,9 @@ uv run mypy
 uv run pytest
 ```
 
-Coverage target per mission plan §15: 90% line / 85% branch. Currently the
-`fail_under` gate is relaxed at 0 during Phase 0 — bump it back up as
-coverage grows with Phase 1+ code.
+Coverage target per mission plan §15: 90% line / 85% branch. Current
+`fail_under` gate is 78 (Phase-1 floor; actual coverage ~81%). Tighten
+the gate further as each phase lands real code.
 
 ## Security reminders (mission plan §17)
 
