@@ -28,6 +28,7 @@ dependencies = [
     "keyring>=25.0",
     "pyyaml>=6.0.2",
     "tomli-w>=1.0",
+    "dnspython>=2.7",
 ]
 
 [project.urls]
