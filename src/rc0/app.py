@@ -20,6 +20,7 @@ from rc0.client.errors import ConfirmationDeclined, Rc0Error
 from rc0.commands import auth as auth_cmd
 from rc0.commands import config as config_cmd
 from rc0.commands import help as help_cmd
+from rc0.commands import introspect as introspect_cmd
 from rc0.commands import messages as messages_cmd
 from rc0.commands import record as record_cmd
 from rc0.commands import report as report_cmd
@@ -48,6 +49,8 @@ app.add_typer(settings_cmd.app, name="settings", help="Manage account-level sett
 app.add_typer(stats_cmd.app, name="stats", help="Account statistics.")
 app.add_typer(tsig_cmd.app, name="tsig", help="Manage TSIG keys.")
 app.add_typer(zone_cmd.app, name="zone", help="Manage RcodeZero zones.")
+
+introspect_cmd.register(app)
 
 
 OutputOption = Annotated[
