@@ -13,6 +13,58 @@
 - [`tests/fixtures/openapi.json`](../../../tests/fixtures/openapi.json) — pinned RcodeZero API v2.9 spec. Every new response model must match a schema here.
 - [`../../../CLAUDE.md`](../../../CLAUDE.md) — settled tactical decisions.
 
+## Schema correction (post-Task-3, 2026-04-21)
+
+The original Task 1/3 sections below assumed **all listing endpoints return bare JSON arrays** and that a short page signals the end of iteration. Inspection of the pinned spec against real endpoints revealed the API actually uses **two shapes** for listing responses:
+
+1. **Laravel-style pagination envelope** (schemas `ListZones`, `GetRRsets`, `ListMessages`, problematic-zones report): an object with `data: [...]`, `current_page`, `last_page`, `per_page`, `total`, `from`, `to`, `next_page_url`, `prev_page_url`, `path`.
+2. **Bare JSON array** (`ListTSIGResponse`, `AccountStatsQueries`, `AccountStatsTopzones`, `/reports/nxdomains`): items directly, no metadata.
+
+Singular endpoints (`/zones/{zone}`, `/tsig/{keyname}`, `/settings`, `/messages`, `/zones/{zone}/status`) return a single object.
+
+**Consequences of the original mistake:** commit `29bf683`/`f35f108` (Task 1) and `356a4f8` (Task 3) shipped code that only speaks shape #2, with tests that coincidentally use #2 in mocks — so tests pass but the real `GET /api/v2/zones` fails to parse.
+
+**Correction applied in revised Tasks 1a and 3a below.** Subsequent tasks (4–13) build on the corrected paginator. Original Task 1 and Task 3 sections are kept below for historical reference but are superseded.
+
+### Revised contract: paginator handles both shapes
+
+`iter_pages(client, path, *, page_size, params, start_page)` returns `Iterator[list[dict[str, Any]]]`.
+
+- Make one HTTP call per iteration.
+- If the JSON response is a **dict with `data` (list)**, yield `response["data"]`. Read `current_page` and `last_page` from the same response; stop when `current_page >= last_page` (or when `data` is empty, as a safety belt).
+- If the response is a **bare list**, yield it and stop when `len(yielded) < page_size` (the original short-page rule).
+- If the response is anything else, raise `ServerError` with a `RequestSummary` (unchanged).
+- `iter_all` unchanged — still calls `iter_pages` and flattens.
+
+### Revised Zone model (spec-accurate)
+
+```python
+class Zone(Rc0Model):
+    id: int | None = None
+    domain: str
+    type: str | None = None   # real API returns "MASTER"/"SLAVE" uppercase; keep as-is, no default
+    dnssec: str | None = None
+    created: str | None = None
+    last_check: str | None = None
+    serial: int | None = None
+    masters: list[str] | None = None
+    nsset: list[str] | None = None
+    outbound_xfr_host: dict[str, Any] | None = None
+    zone_disabled: bool | None = None
+```
+
+`ZoneStatus` stays shape-permissive (`extra="allow"`); the spec example shows `{"zone_disabled": false}` but real responses may carry more.
+
+### Revised command columns
+
+`rc0 zone list` default columns: `["domain", "type", "serial", "dnssec", "last_check"]` — matches what a DNS operator actually scans for.
+
+### Revised command flags (applies to every list command going forward)
+
+- `--page` and `--page-size` accept positive integers only (Typer `min=1`).
+- `--page` is **incompatible** with `--all` — passing both raises `ValidationError` (exit 7) with a hint.
+- In api-layer function signatures, the kwarg is named `fetch_all` (not `all`) to stop shadowing the built-in; the CLI flag is still `--all` and Typer just binds it to `fetch_all`.
+
 **Scope — non-deprecated GETs (one command per endpoint):**
 
 | Endpoint | CLI command | Paginated? |
