@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from rc0.client.errors import RequestSummary, ServerError
+
 if TYPE_CHECKING:
     from collections.abc import Iterator, Mapping
 
@@ -26,16 +28,21 @@ def iter_pages(
     start_page: int = 1,
 ) -> Iterator[list[dict[str, Any]]]:
     """Yield successive pages until a short page signals the end."""
+    if page_size <= 0:
+        msg = f"page_size must be positive, got {page_size}."
+        raise ValueError(msg)
     page = start_page
     while True:
-        query: dict[str, Any] = {"page": page, "page_size": page_size}
-        if params:
-            query.update(params)
+        query: dict[str, Any] = dict(params) if params else {}
+        query["page"] = page
+        query["page_size"] = page_size
         response = client.get(path, params=query)
         payload = response.json()
         if not isinstance(payload, list):
-            msg = f"Expected JSON array from {path}, got {type(payload).__name__}."
-            raise TypeError(msg)
+            raise ServerError(
+                f"Expected JSON array from {path}, got {type(payload).__name__}.",
+                request=RequestSummary(method="GET", url=f"{client.api_url}{path}"),
+            )
         yield payload
         if len(payload) < page_size:
             return
