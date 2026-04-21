@@ -1,26 +1,54 @@
-"""Placeholder for auto-pagination.
+"""Auto-pagination helpers used by read-only list commands.
 
-The full iterator ships in Phase 1 (read-only commands). For v0.1.0 we only
-need the shape that other modules can import.
+The RcodeZero API v2 accepts ``page`` (1-indexed) and ``page_size`` query
+parameters on listing endpoints. Responses are JSON arrays; when a page
+returns fewer rows than ``page_size`` we've hit the end.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator, Mapping
+
+    from rc0.client.http import Client
+
+DEFAULT_PAGE_SIZE = 50
 
 
-@dataclass
-class Page:
-    """A single page of results from a paginated endpoint."""
+def iter_pages(
+    client: Client,
+    path: str,
+    *,
+    page_size: int = DEFAULT_PAGE_SIZE,
+    params: Mapping[str, Any] | None = None,
+    start_page: int = 1,
+) -> Iterator[list[dict[str, Any]]]:
+    """Yield successive pages until a short page signals the end."""
+    page = start_page
+    while True:
+        query: dict[str, Any] = {"page": page, "page_size": page_size}
+        if params:
+            query.update(params)
+        response = client.get(path, params=query)
+        payload = response.json()
+        if not isinstance(payload, list):
+            msg = f"Expected JSON array from {path}, got {type(payload).__name__}."
+            raise TypeError(msg)
+        yield payload
+        if len(payload) < page_size:
+            return
+        page += 1
 
-    items: list[dict[str, object]]
-    page: int
-    page_size: int
-    total: int | None = None
 
-
-def has_next(page: Page) -> bool:
-    """True if another page likely exists."""
-    if page.total is None:
-        return len(page.items) == page.page_size
-    return (page.page * page.page_size) < page.total
+def iter_all(
+    client: Client,
+    path: str,
+    *,
+    page_size: int = DEFAULT_PAGE_SIZE,
+    params: Mapping[str, Any] | None = None,
+) -> Iterator[dict[str, Any]]:
+    """Flatten :func:`iter_pages` into a row iterator."""
+    for page in iter_pages(client, path, page_size=page_size, params=params):
+        yield from page
