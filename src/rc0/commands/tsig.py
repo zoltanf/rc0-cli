@@ -56,7 +56,13 @@ def list_cmd(
     page_size: PageSizeOpt = None,
     fetch_all: Annotated[bool, typer.Option("--all", help="Auto-paginate every row.")] = False,
 ) -> None:
-    """List TSIG keys. API: GET /api/v2/tsig"""
+    """List TSIG keys. API: GET /api/v2/tsig
+
+    Examples:
+
+      rc0 tsig list
+      rc0 tsig list -o json
+    """
     state: AppState = ctx.obj
     if fetch_all and page is not None:
         raise ValidationError(
@@ -134,7 +140,13 @@ def add_cmd(
     algorithm: AlgorithmOpt,
     secret: SecretOpt,
 ) -> None:
-    """Add a TSIG key. API: POST /api/v2/tsig"""
+    """Add a TSIG key. API: POST /api/v2/tsig
+
+    Examples:
+
+      rc0 tsig add mykey --algorithm hmac-sha256 --secret base64secret==
+      rc0 tsig add mykey --algorithm hmac-sha256 --secret base64secret== --dry-run -o json
+    """
     state: AppState = ctx.obj
     with _client(state) as client:
         result = tsig_write_api.add_tsig(
@@ -169,7 +181,16 @@ def update_cmd(
 
 @app.command("delete")
 def delete_cmd(ctx: typer.Context, name: NameArg) -> None:
-    """Delete a TSIG key. API: DELETE /api/v2/tsig/{keyname}"""
+    """Delete a TSIG key. API: DELETE /api/v2/tsig/{keyname}
+
+    Prompts for confirmation unless -y is passed.
+
+    Examples:
+
+      rc0 tsig delete mykey
+      rc0 tsig delete mykey -y
+      rc0 tsig delete mykey --dry-run -o json
+    """
     state: AppState = ctx.obj
     if not state.dry_run and not state.yes:
         confirm_yes_no(f"Would delete TSIG key {name}.")

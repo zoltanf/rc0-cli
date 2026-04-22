@@ -60,7 +60,14 @@ def list_cmd(
     page_size: PageSizeOpt = None,
     fetch_all: Annotated[bool, typer.Option("--all", help="Auto-paginate every row.")] = False,
 ) -> None:
-    """List zones on the account. API: GET /api/v2/zones"""
+    """List zones on the account. API: GET /api/v2/zones
+
+    Examples:
+
+      rc0 zone list
+      rc0 zone list -o json --all
+      rc0 zone list --page 2 --page-size 20
+    """
     state: AppState = ctx.obj
     if fetch_all and page is not None:
         raise ValidationError(
@@ -86,7 +93,13 @@ def list_cmd(
 
 @app.command("show")
 def show_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
-    """Show one zone. API: GET /api/v2/zones/{zone}"""
+    """Show one zone. API: GET /api/v2/zones/{zone}
+
+    Examples:
+
+      rc0 zone show example.com
+      rc0 zone show example.com -o json
+    """
     state: AppState = ctx.obj
     with _client(state) as client:
         z = zones_api.show_zone(client, zone)
@@ -161,7 +174,14 @@ def create_cmd(
     cds: CdsOpt = None,
     serial_auto: SerialAutoOpt = None,
 ) -> None:
-    """Add a new zone. API: POST /api/v2/zones"""
+    """Add a new zone. API: POST /api/v2/zones
+
+    Examples:
+
+      rc0 zone create example.com
+      rc0 zone create example.com --type slave --master 1.2.3.4
+      rc0 zone create example.com --dry-run -o json
+    """
     state: AppState = ctx.obj
     with _client(state) as client:
         result = zones_write_api.create_zone(
@@ -188,7 +208,14 @@ def update_cmd(
     cds: CdsOpt = None,
     serial_auto: SerialAutoOpt = None,
 ) -> None:
-    """Update an existing zone. API: PUT /api/v2/zones/{zone}"""
+    """Update an existing zone. API: PUT /api/v2/zones/{zone}
+
+    Examples:
+
+      rc0 zone update example.com --cds
+      rc0 zone update example.com --serial-auto
+      rc0 zone update example.com --dry-run -o json
+    """
     state: AppState = ctx.obj
     with _client(state) as client:
         result = zones_write_api.update_zone(
@@ -233,7 +260,16 @@ def disable_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
 
 @app.command("delete")
 def delete_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
-    """Delete a zone. API: DELETE /api/v2/zones/{zone}"""
+    """Delete a zone. API: DELETE /api/v2/zones/{zone}
+
+    Prompts for confirmation (type the zone name) unless -y is passed.
+
+    Examples:
+
+      rc0 zone delete example.com
+      rc0 zone delete example.com -y
+      rc0 zone delete example.com --dry-run -o json
+    """
     state: AppState = ctx.obj
     if not state.dry_run and not state.yes:
         confirm_typed(

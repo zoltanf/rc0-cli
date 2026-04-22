@@ -73,7 +73,14 @@ def list_cmd(
         typer.Option("--all", help="Auto-paginate every row."),
     ] = False,
 ) -> None:
-    """List RRsets. API: GET /api/v2/zones/{zone}/rrsets"""
+    """List RRsets. API: GET /api/v2/zones/{zone}/rrsets
+
+    Examples:
+
+      rc0 record list example.com
+      rc0 record list example.com --name www --type A
+      rc0 record list example.com -o json --all
+    """
     state: AppState = ctx.obj
     if fetch_all and page is not None:
         raise ValidationError(
@@ -211,7 +218,15 @@ def add_cmd(
     ttl: TtlOpt = 3600,
     disabled: DisabledOpt = False,
 ) -> None:
-    """Add a single RRset. API: PATCH /api/v2/zones/{zone}/rrsets"""
+    """Add a single RRset. API: PATCH /api/v2/zones/{zone}/rrsets
+
+    Examples:
+
+      rc0 record add example.com --name www --type A --content 10.0.0.1
+      rc0 record add example.com --name mail --type MX --content '10 mail.example.com.'
+      rc0 record add example.com --name www --type A --content 10.0.0.1 --content 10.0.0.2
+      rc0 record add example.com --name www --type A --content 10.0.0.1 --dry-run -o json
+    """
     state: AppState = ctx.obj
     change = rrsets_parse.from_flags(
         name=name,
@@ -248,7 +263,13 @@ def update_cmd(
     ttl: TtlOpt = 3600,
     disabled: DisabledOpt = False,
 ) -> None:
-    """Replace an RRset's records. API: PATCH /api/v2/zones/{zone}/rrsets"""
+    """Replace an RRset's records. API: PATCH /api/v2/zones/{zone}/rrsets
+
+    Examples:
+
+      rc0 record update example.com --name www --type A --content 10.0.0.1 --ttl 300
+      rc0 record update example.com --name www --type A --content 10.0.0.1 --dry-run
+    """
     state: AppState = ctx.obj
     change = rrsets_parse.from_flags(
         name=name,
@@ -285,7 +306,13 @@ def delete_cmd(
 ) -> None:
     """Delete an RRset. API: PATCH /api/v2/zones/{zone}/rrsets (changetype=delete)
 
-    Per mission-plan §18.4: always prompts for confirmation; pass -y for scripts.
+    Prompts for confirmation unless -y is passed.
+
+    Examples:
+
+      rc0 record delete example.com --name www --type A
+      rc0 record delete example.com --name www --type A -y
+      rc0 record delete example.com --name www --type A --dry-run -o json
     """
     state: AppState = ctx.obj
     change = rrsets_parse.from_flags(

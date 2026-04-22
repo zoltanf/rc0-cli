@@ -68,7 +68,13 @@ def list_cmd(
     page_size: PageSizeOpt = None,
     fetch_all: Annotated[bool, typer.Option("--all", help="Auto-paginate every row.")] = False,
 ) -> None:
-    """List queued messages. API: GET /api/v2/messages/list"""
+    """List queued messages. API: GET /api/v2/messages/list
+
+    Examples:
+
+      rc0 messages list
+      rc0 messages list -o json --all
+    """
     state: AppState = ctx.obj
     if fetch_all and page is not None:
         raise ValidationError(
@@ -114,7 +120,16 @@ def ack_cmd(ctx: typer.Context, message_id: MessageIdArg) -> None:
 
 @app.command("ack-all")
 def ack_all_cmd(ctx: typer.Context) -> None:
-    """Loop: poll + ack until the queue is empty. API: GET /messages + DELETE /messages/{id}"""
+    """Loop: poll + ack until the queue is empty. API: GET /messages + DELETE /messages/{id}
+
+    Prompts for confirmation unless -y is passed.
+
+    Examples:
+
+      rc0 messages ack-all
+      rc0 messages ack-all -y
+      rc0 messages ack-all --dry-run -o json
+    """
     state: AppState = ctx.obj
     if state.dry_run:
         # Not a single HTTP call — emit a dry-run envelope with just a summary.

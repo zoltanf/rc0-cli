@@ -68,7 +68,14 @@ def sign_cmd(
         typer.Option("--enable-cds-cdnskey", help="Publish CDS/CDNSKEY records."),
     ] = False,
 ) -> None:
-    """Sign a zone with DNSSEC. API: POST /api/v2/zones/{zone}/sign"""
+    """Sign a zone with DNSSEC. API: POST /api/v2/zones/{zone}/sign
+
+    Examples:
+
+      rc0 dnssec sign example.com
+      rc0 dnssec sign example.com --enable-cds-cdnskey
+      rc0 dnssec sign example.com --dry-run -o json
+    """
     state: AppState = ctx.obj
     with _client(state) as client:
         result = dnssec_write.sign_zone(
@@ -90,7 +97,17 @@ def unsign_cmd(
         typer.Option("--force", help="Required — acknowledges that DNSSEC will be removed."),
     ] = False,
 ) -> None:
-    """Remove DNSSEC signing from a zone. API: POST /api/v2/zones/{zone}/unsign"""
+    """Remove DNSSEC signing from a zone. API: POST /api/v2/zones/{zone}/unsign
+
+    Requires --force to prevent accidental removal. Prompts for confirmation
+    unless -y is passed.
+
+    Examples:
+
+      rc0 dnssec unsign example.com --force
+      rc0 dnssec unsign example.com --force -y
+      rc0 dnssec unsign example.com --force --dry-run -o json
+    """
     state: AppState = ctx.obj
     if not force:
         raise ValidationError(
@@ -121,7 +138,16 @@ def keyrollover_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
 
 @app.command("ack-ds")
 def ack_ds_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
-    """Acknowledge DS update. API: POST /api/v2/zones/{zone}/dsupdate"""
+    """Acknowledge DS update. API: POST /api/v2/zones/{zone}/dsupdate
+
+    Call after submitting DS records to the parent zone and confirming
+    propagation.
+
+    Examples:
+
+      rc0 dnssec ack-ds example.com
+      rc0 dnssec ack-ds example.com --dry-run -o json
+    """
     state: AppState = ctx.obj
     with _client(state) as client:
         result = dnssec_write.ack_ds(client, zone=zone, dry_run=state.dry_run)

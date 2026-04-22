@@ -38,7 +38,14 @@ def login(
         ),
     ] = False,
 ) -> None:
-    """Prompt for an API token, validate it, and store it."""
+    """Prompt for an API token, validate it, and store it.
+
+    Examples:
+
+      rc0 auth login
+      rc0 auth login --token "$RC0_API_TOKEN"
+      rc0 --profile staging auth login
+    """
     state: AppState = ctx.obj
     raw_token = token or getpass.getpass("API token: ")
     if not raw_token:
@@ -62,7 +69,13 @@ def login(
 
 @app.command("logout")
 def logout(ctx: typer.Context) -> None:
-    """Remove the stored token for the active profile."""
+    """Remove the stored token for the active profile.
+
+    Examples:
+
+      rc0 auth logout
+      rc0 --profile staging auth logout
+    """
     state: AppState = ctx.obj
     removed = auth_core.delete_token(state.profile_name)
     payload = {
@@ -79,7 +92,13 @@ def logout(ctx: typer.Context) -> None:
 
 @app.command("status")
 def status(ctx: typer.Context) -> None:
-    """Show where the active token is stored, without revealing its value."""
+    """Show where the active token is stored, without revealing its value.
+
+    Examples:
+
+      rc0 auth status
+      rc0 --profile staging auth status
+    """
     state: AppState = ctx.obj
     record = auth_core.load_token(state.profile_name)
     if record is None:

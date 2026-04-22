@@ -1,6 +1,6 @@
 [project]
 name = "rc0-cli"
-version = "0.9.0"
+version = "1.0.0"
 description = "Command line for RcodeZero DNS."
 readme = "README.md"
 requires-python = ">=3.14"
@@ -8,7 +8,7 @@ license = { text = "MIT" }
 authors = [{ name = "Zoltán Fekete" }]
 keywords = ["dns", "rcodezero", "cli", "anycast", "dnssec"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Environment :: Console",
     "Intended Audience :: System Administrators",
     "License :: OSI Approved :: MIT License",
@@ -127,7 +127,7 @@ branch = true
 [tool.coverage.report]
 # Floor — prevents regressions. Mission-plan §15 target for v1.0.0 is
 # 90% line / 85% branch; tighten this gate as each phase lands real code.
-fail_under = 86
+fail_under = 87
 show_missing = true
 skip_covered = false
 exclude_lines = [

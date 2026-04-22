@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0] — v1.0.0 Polish
+
+### Added
+- `rc0 help agents` topic — how to drive rc0 from scripts and LLM agents:
+  machine-readable output, exit codes, dry-run, `rc0 introspect`, pagination,
+  CI token management, and the recommended agent pattern.
+- `docs/api-coverage.md` auto-generated from `scripts/gen_api_coverage.py`;
+  63/63 endpoints in the pinned OpenAPI spec mapped with ✅/⚠️ status.
+- `scripts/gen_api_coverage.py` — generates `docs/api-coverage.md` from the
+  pinned spec; run with `uv run python scripts/gen_api_coverage.py`.
+
+### Changed
+- Coverage gate raised from 86% → 87% (actual: 87.21%).
+- `pyproject.toml` classifier updated from Alpha → Production/Stable.
+- All key command help texts now include worked examples in `--help` output:
+  `zone` (list/show/create/update/delete), `record` (list/add/update/delete),
+  `dnssec` (sign/unsign/ack-ds), `acme` (all four commands), `auth` (login/
+  logout/status), `tsig` (list/add/delete), `messages` (list/ack-all).
+
 ## [0.9.0] — Packaging & Distribution
 
 ### Added

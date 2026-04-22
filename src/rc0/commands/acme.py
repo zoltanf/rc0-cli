@@ -72,7 +72,13 @@ def _render_mutation(result: DryRunResult | dict[str, object], state: AppState) 
 
 @app.command("zone-exists")
 def zone_exists_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
-    """Check if a zone is configured for ACME. API: GET /api/v1/acme/{zone}"""
+    """Check if a zone is configured for ACME. API: GET /api/v1/acme/{zone}
+
+    Examples:
+
+      rc0 acme zone-exists example.com
+      rc0 acme zone-exists example.com -o json
+    """
     state: AppState = ctx.obj
     with _acme_client(state) as client:
         result = acme_api.zone_exists(client, zone)
@@ -93,7 +99,13 @@ def list_challenges_cmd(
     ] = None,
     fetch_all: Annotated[bool, typer.Option("--all", help="Auto-paginate every page.")] = False,
 ) -> None:
-    """List ACME challenge TXT records for a zone. API: GET /api/v1/acme/zones/{zone}/rrsets"""
+    """List ACME challenge TXT records for a zone. API: GET /api/v1/acme/zones/{zone}/rrsets
+
+    Examples:
+
+      rc0 acme list-challenges example.com
+      rc0 acme list-challenges example.com -o json
+    """
     state: AppState = ctx.obj
     with _acme_client(state) as client:
         records = acme_api.list_challenges(
@@ -113,7 +125,16 @@ def add_challenge_cmd(
     value: Annotated[str, typer.Option("--value", help="Challenge token value.")],
     ttl: Annotated[int, typer.Option("--ttl", min=1, help="TTL in seconds.")] = 60,
 ) -> None:
-    """Add an ACME DNS-01 challenge TXT record. API: PATCH /api/v1/acme/zones/{zone}/rrsets"""
+    """Add an ACME DNS-01 challenge TXT record. API: PATCH /api/v1/acme/zones/{zone}/rrsets
+
+    Requires an ACME-scoped token (see `rc0 help authentication`).
+
+    Examples:
+
+      rc0 acme add-challenge example.com --value abc123token
+      rc0 acme add-challenge example.com --value abc123token --ttl 120
+      rc0 acme add-challenge example.com --value abc123token --dry-run -o json
+    """
     state: AppState = ctx.obj
     with _acme_client(state) as client:
         result = acme_write.add_challenge(
@@ -128,7 +149,16 @@ def add_challenge_cmd(
 
 @app.command("remove-challenge")
 def remove_challenge_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
-    """Remove ACME challenge TXT records from a zone. API: PATCH /api/v1/acme/zones/{zone}/rrsets"""
+    """Remove ACME challenge TXT records from a zone. API: PATCH /api/v1/acme/zones/{zone}/rrsets
+
+    Prompts for confirmation unless -y is passed.
+
+    Examples:
+
+      rc0 acme remove-challenge example.com
+      rc0 acme remove-challenge example.com -y
+      rc0 acme remove-challenge example.com --dry-run -o json
+    """
     state: AppState = ctx.obj
     if not state.dry_run and not state.yes:
         confirm_yes_no(f"Remove all ACME challenge TXT records from {zone}?")
