@@ -15,6 +15,7 @@ from rc0.app_state import AppState  # noqa: TC001
 from rc0.client.dry_run import DryRunResult
 from rc0.client.errors import AuthError, ValidationError
 from rc0.client.http import Client
+from rc0.confirm import confirm_yes_no
 from rc0.output import OutputFormat, render
 from rc0.output.bind import render_rrsets
 from rc0.rrsets import parse as rrsets_parse
@@ -288,5 +289,46 @@ def update_cmd(
             summary=f"Would replace records on {change.type} rrset {change.name} "
             f"(to {len(change.records)} record(s)).",
             side_effects=["updates_rrset"],
+        )
+    _render_mutation(result, state)
+
+
+@app.command("delete")
+def delete_cmd(
+    ctx: typer.Context,
+    zone: ZoneArg,
+    name: NameOpt,
+    type_: TypeOpt,
+    ttl: TtlOpt = 3600,
+) -> None:
+    """Delete an RRset. API: PATCH /api/v2/zones/{zone}/rrsets (changetype=delete)
+
+    Per mission-plan §18.4: always prompts for confirmation; pass -y for scripts.
+    """
+    state: AppState = ctx.obj
+    change = rrsets_parse.from_flags(
+        name=name,
+        type_=type_,
+        ttl=ttl,
+        contents=[],
+        disabled=False,
+        changetype="delete",
+        zone=zone,
+        verbose=state.verbose,
+        warn=_warn(state),
+    )
+    rrsets_validate.validate_changes([change])
+    if not state.dry_run and not state.yes:
+        confirm_yes_no(
+            f"Would delete {change.type} rrset {change.name} from zone {zone}.",
+        )
+    with _client(state) as client:
+        result = rrsets_write_api.patch_rrsets(
+            client,
+            zone=zone,
+            changes=[change],
+            dry_run=state.dry_run,
+            summary=f"Would delete {change.type} rrset {change.name}.",
+            side_effects=["deletes_rrset"],
         )
     _render_mutation(result, state)

@@ -173,3 +173,117 @@ def test_record_update_live(cli: CliRunner, isolated_config: Path) -> None:
     sent = json.loads(route.calls.last.request.content)
     assert sent[0]["changetype"] == "update"
     assert sent[0]["records"] == [{"content": "10.0.0.9", "disabled": False}]
+
+
+# -------- record delete --------
+
+
+@respx.mock
+def test_record_delete_y_proceeds(cli: CliRunner, isolated_config: Path) -> None:
+    route = respx.patch(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+    ).mock(return_value=httpx.Response(200, json={"status": "ok"}))
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "-o",
+            "json",
+            "record",
+            "delete",
+            "example.com",
+            "--name",
+            "www",
+            "--type",
+            "A",
+        ],
+        input="y\n",
+    )
+    assert r.exit_code == 0, r.stdout
+    sent = json.loads(route.calls.last.request.content)
+    assert sent[0]["changetype"] == "delete"
+    assert sent[0]["records"] == []
+
+
+@respx.mock
+def test_record_delete_declined_exits_12(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    route = respx.patch(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+    ).mock(return_value=httpx.Response(200, json={"status": "ok"}))
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "record",
+            "delete",
+            "example.com",
+            "--name",
+            "www",
+            "--type",
+            "A",
+        ],
+        input="n\n",
+    )
+    assert r.exit_code == 12
+    assert not route.called
+
+
+@respx.mock
+def test_record_delete_yes_skips_prompt(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    route = respx.patch(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+    ).mock(return_value=httpx.Response(200, json={"status": "ok"}))
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "-y",
+            "-o",
+            "json",
+            "record",
+            "delete",
+            "example.com",
+            "--name",
+            "www",
+            "--type",
+            "A",
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    assert route.called
+
+
+def test_record_delete_dry_run_skips_prompt_and_network(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "-o",
+            "json",
+            "--dry-run",
+            "record",
+            "delete",
+            "example.com",
+            "--name",
+            "www",
+            "--type",
+            "A",
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    parsed = json.loads(r.stdout)
+    assert parsed["dry_run"] is True
+    assert parsed["request"]["body"][0]["changetype"] == "delete"
