@@ -15,6 +15,12 @@ import json
 from pathlib import Path  # noqa: TC003
 from typing import TYPE_CHECKING
 
+import dns.exception
+import dns.name
+import dns.rdataclass
+import dns.rdataset
+import dns.rdatatype
+import dns.zone
 import yaml
 from pydantic import ValidationError as PydanticValidationError
 
@@ -23,6 +29,7 @@ from rc0.models.rrset_write import (
     ChangeType,
     RecordInput,
     RRsetChange,
+    RRsetInput,
 )
 from rc0.validation.rrsets import qualify_name
 
@@ -168,3 +175,41 @@ def from_file(
             ) from exc
         changes.append(change)
     return changes
+
+
+def from_zonefile(path: Path, *, zone: str) -> list[RRsetInput]:
+    """Parse a BIND zone file into a list of :class:`RRsetInput` (PUT body rows).
+
+    Rendered via ``dnspython``; the caller feeds the result into
+    ``rc0 record replace-all``. ``$ORIGIN`` is forced to ``zone`` so a zone
+    file that already declares a different origin gets rewritten to the
+    command's target.
+    """
+    if not path.exists():
+        raise ValidationError(
+            f"Zone file {path} does not exist.",
+            hint="Double-check the --zone-file path.",
+        )
+    origin = dns.name.from_text(zone.rstrip(".") + ".")
+    try:
+        z = dns.zone.from_file(str(path), origin=origin, relativize=False)
+    except (dns.exception.DNSException, OSError) as exc:
+        raise ValidationError(
+            f"Failed to parse zone file {path}: {exc}.",
+            hint="Ensure the file is RFC 1035 zone-file syntax; check $ORIGIN and $TTL directives.",
+        ) from exc
+    rrsets: list[RRsetInput] = []
+    for name, node in z.nodes.items():
+        for rds in node.rdatasets:
+            if rds.rdclass != dns.rdataclass.IN:
+                continue
+            rrsets.append(
+                RRsetInput(
+                    name=name.to_text(),
+                    type=dns.rdatatype.to_text(rds.rdtype),
+                    ttl=rds.ttl,
+                    records=[RecordInput(content=rd.to_text()) for rd in rds],
+                ),
+            )
+    rrsets.sort(key=lambda r: (r.name, r.type))
+    return rrsets
