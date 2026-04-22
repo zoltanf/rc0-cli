@@ -105,7 +105,9 @@ def ack_cmd(ctx: typer.Context, message_id: MessageIdArg) -> None:
     state: AppState = ctx.obj
     with _client(state) as client:
         result = messages_write_api.ack_message(
-            client, message_id=message_id, dry_run=state.dry_run,
+            client,
+            message_id=message_id,
+            dry_run=state.dry_run,
         )
     _render_mutation(result, state)
 

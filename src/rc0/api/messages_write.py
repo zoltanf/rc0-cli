@@ -13,7 +13,10 @@ if TYPE_CHECKING:
 
 
 def ack_message(
-    client: Client, *, message_id: int, dry_run: bool,
+    client: Client,
+    *,
+    message_id: int,
+    dry_run: bool,
 ) -> DryRunResult | dict[str, Any]:
     return execute_mutation(
         client,

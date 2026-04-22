@@ -153,7 +153,8 @@ def test_tsig_delete_yes_flag_skips_prompt(cli: CliRunner, isolated_config: Path
 
 
 def test_tsig_delete_dry_run_skips_prompt_and_network(
-    cli: CliRunner, isolated_config: Path,
+    cli: CliRunner,
+    isolated_config: Path,
 ) -> None:
     # No respx route registered; if the command reached the network, respx
     # would 500. --dry-run must skip both the confirmation prompt and the HTTP

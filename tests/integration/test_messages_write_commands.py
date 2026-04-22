@@ -45,7 +45,8 @@ def test_messages_ack_dry_run(cli: CliRunner, isolated_config: Path) -> None:
 
 @respx.mock
 def test_messages_ack_all_loops_until_empty(
-    cli: CliRunner, isolated_config: Path,
+    cli: CliRunner,
+    isolated_config: Path,
 ) -> None:
     poll = respx.get("https://my.rcodezero.at/api/v2/messages")
     poll.side_effect = [
@@ -70,7 +71,8 @@ def test_messages_ack_all_loops_until_empty(
 
 
 def test_messages_ack_all_yn_declined(
-    cli: CliRunner, isolated_config: Path,
+    cli: CliRunner,
+    isolated_config: Path,
 ) -> None:
     r = cli.invoke(
         app,
@@ -81,7 +83,8 @@ def test_messages_ack_all_yn_declined(
 
 
 def test_messages_ack_all_dry_run_emits_single_summary(
-    cli: CliRunner, isolated_config: Path,
+    cli: CliRunner,
+    isolated_config: Path,
 ) -> None:
     r = cli.invoke(
         app,
