@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] — Packaging & Distribution
+
+### Added
+- GitHub Actions release workflow (`.github/workflows/release.yml`): tag push →
+  test matrix on all five platforms → PyInstaller binary build matrix →
+  PyPI publish via OIDC trusted publisher → GitHub Release with all binaries
+  and `SHA256SUMS`.
+- PyInstaller dependency group in `pyproject.toml` (`uv sync --group pyinstaller`).
+- Homebrew formula template (`packaging/homebrew/rc0.rb`); the release workflow
+  populates version + sha256 and pushes it to the `homebrew-rc0` tap repo.
+- Dependabot configuration for pip and GitHub Actions dependencies (weekly).
+- Expanded CI test matrix (`ci.yml`) to all five spec platforms: `ubuntu-24.04`,
+  `ubuntu-24.04-arm`, `macos-14`, `macos-13`, `windows-2025`.
+- README quickstart with install instructions, authentication, and example commands.
+
+### Fixed
+- `actions/checkout@v6` (non-existent) corrected to `actions/checkout@v4` in CI.
+
 ## [0.6.0] — ACME
 
 ### Added
