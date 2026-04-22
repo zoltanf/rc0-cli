@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Annotated
 
 import typer
 
 from rc0 import auth as auth_core
 from rc0.api import zones as zones_api
+from rc0.api import zones_write as zones_write_api
 from rc0.app_state import AppState  # noqa: TC001
+from rc0.client.dry_run import DryRunResult
 from rc0.client.errors import AuthError, ValidationError
 from rc0.client.http import Client
+from rc0.confirm import confirm_typed
 from rc0.output import render
 
 app = typer.Typer(
@@ -96,3 +100,289 @@ def status_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
     with _client(state) as client:
         s = zones_api.zone_status(client, zone)
     typer.echo(render(s.model_dump(exclude_none=True), fmt=state.effective_output))
+
+
+# ---------------------------------------------------------- Phase 2 mutations
+
+
+class ZoneTypeChoice(StrEnum):
+    """Typer-friendly enum. Values match the API's lowercase `type2` enum."""
+
+    master = "master"
+    slave = "slave"
+
+
+TypeOpt = Annotated[
+    ZoneTypeChoice,
+    typer.Option(
+        "--type",
+        help="Zone type: master or slave.",
+        case_sensitive=False,
+    ),
+]
+MasterOpt = Annotated[
+    list[str] | None,
+    typer.Option(
+        "--master",
+        help="Primary nameserver IP. Repeat for multiple; required for slave zones.",
+    ),
+]
+CdsOpt = Annotated[
+    bool | None,
+    typer.Option(
+        "--cds/--no-cds",
+        help="Publish CDS/CDNSKEY records (RFC 7344).",
+    ),
+]
+SerialAutoOpt = Annotated[
+    bool | None,
+    typer.Option(
+        "--serial-auto/--no-serial-auto",
+        help="Auto-increment serial on RRset updates (master zones only).",
+    ),
+]
+RequiredTsigKeyOpt = Annotated[
+    str,
+    typer.Option("--tsigkey", help="Name of a preconfigured TSIG key."),
+]
+
+
+def _render_mutation(result: DryRunResult | dict[str, object], state: AppState) -> None:
+    payload = result.to_dict() if isinstance(result, DryRunResult) else result
+    typer.echo(render(payload, fmt=state.effective_output))
+
+
+@app.command("create")
+def create_cmd(
+    ctx: typer.Context,
+    domain: Annotated[str, typer.Argument(help="Domain to add.")],
+    zone_type: TypeOpt = ZoneTypeChoice.master,
+    masters: MasterOpt = None,
+    cds: CdsOpt = None,
+    serial_auto: SerialAutoOpt = None,
+) -> None:
+    """Add a new zone. API: POST /api/v2/zones"""
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        result = zones_write_api.create_zone(
+            client,
+            domain=domain,
+            zone_type=zone_type.value,
+            masters=masters,
+            cds_cdnskey_publish=cds,
+            serial_auto_increment=serial_auto,
+            dry_run=state.dry_run,
+        )
+    _render_mutation(result, state)
+
+
+@app.command("update")
+def update_cmd(
+    ctx: typer.Context,
+    zone: ZoneArg,
+    zone_type: Annotated[
+        ZoneTypeChoice | None,
+        typer.Option("--type", help="Change zone type.", case_sensitive=False),
+    ] = None,
+    masters: MasterOpt = None,
+    cds: CdsOpt = None,
+    serial_auto: SerialAutoOpt = None,
+) -> None:
+    """Update an existing zone. API: PUT /api/v2/zones/{zone}"""
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        result = zones_write_api.update_zone(
+            client,
+            zone=zone,
+            zone_type=zone_type.value if zone_type else None,
+            masters=masters,
+            cds_cdnskey_publish=cds,
+            serial_auto_increment=serial_auto,
+            dry_run=state.dry_run,
+        )
+    _render_mutation(result, state)
+
+
+@app.command("enable")
+def enable_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
+    """Re-enable a disabled zone. API: PATCH /api/v2/zones/{zone}"""
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        result = zones_write_api.patch_zone_disabled(
+            client,
+            zone=zone,
+            disabled=False,
+            dry_run=state.dry_run,
+        )
+    _render_mutation(result, state)
+
+
+@app.command("disable")
+def disable_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
+    """Disable a zone without deleting it. API: PATCH /api/v2/zones/{zone}"""
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        result = zones_write_api.patch_zone_disabled(
+            client,
+            zone=zone,
+            disabled=True,
+            dry_run=state.dry_run,
+        )
+    _render_mutation(result, state)
+
+
+@app.command("delete")
+def delete_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
+    """Delete a zone. API: DELETE /api/v2/zones/{zone}"""
+    state: AppState = ctx.obj
+    if not state.dry_run and not state.yes:
+        confirm_typed(
+            zone,
+            summary=f"Would delete zone {zone} and discard every RRset. This cannot be undone.",
+        )
+    with _client(state) as client:
+        result = zones_write_api.delete_zone(
+            client,
+            zone=zone,
+            dry_run=state.dry_run,
+        )
+    _render_mutation(result, state)
+
+
+@app.command("retrieve")
+def retrieve_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
+    """Queue an immediate zone transfer. API: POST /api/v2/zones/{zone}/retrieve"""
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        result = zones_write_api.retrieve_zone(
+            client,
+            zone=zone,
+            dry_run=state.dry_run,
+        )
+    _render_mutation(result, state)
+
+
+@app.command("test")
+def test_cmd(
+    ctx: typer.Context,
+    domain: Annotated[str, typer.Argument(help="Domain to validate.")],
+    zone_type: TypeOpt = ZoneTypeChoice.master,
+    masters: MasterOpt = None,
+) -> None:
+    """Server-side validation (does NOT create). API: POST /api/v2/zones?test=1
+
+    This is distinct from --dry-run: the API runs its own checks against the
+    would-be zone. Use --dry-run on top to show what this command would send
+    without contacting the API at all.
+    """
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        result = zones_write_api.test_zone(
+            client,
+            domain=domain,
+            zone_type=zone_type.value,
+            masters=masters,
+            dry_run=state.dry_run,
+        )
+    _render_mutation(result, state)
+
+
+# -------------------------------------------------------- xfr-in / xfr-out subgroups
+
+xfr_in = typer.Typer(name="xfr-in", help="Per-zone inbound transfer config.", no_args_is_help=True)
+xfr_out = typer.Typer(
+    name="xfr-out", help="Per-zone outbound transfer config.", no_args_is_help=True
+)
+app.add_typer(xfr_in, name="xfr-in")
+app.add_typer(xfr_out, name="xfr-out")
+
+
+@xfr_in.command("show")
+def xfr_in_show(ctx: typer.Context, zone: ZoneArg) -> None:
+    """Show the zone's inbound TSIG config. API: GET /api/v2/zones/{zone}/inbound"""
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        payload = zones_write_api.show_inbound(client, zone=zone)
+    typer.echo(render(payload, fmt=state.effective_output))
+
+
+@xfr_in.command("set")
+def xfr_in_set(
+    ctx: typer.Context,
+    zone: ZoneArg,
+    tsigkey: RequiredTsigKeyOpt,
+) -> None:
+    """Set the inbound TSIG key. API: POST /api/v2/zones/{zone}/inbound"""
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        result = zones_write_api.set_inbound(
+            client,
+            zone=zone,
+            tsigkey=tsigkey,
+            dry_run=state.dry_run,
+        )
+    _render_mutation(result, state)
+
+
+@xfr_in.command("unset")
+def xfr_in_unset(ctx: typer.Context, zone: ZoneArg) -> None:
+    """Clear the inbound TSIG key. API: DELETE /api/v2/zones/{zone}/inbound"""
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        result = zones_write_api.unset_inbound(
+            client,
+            zone=zone,
+            dry_run=state.dry_run,
+        )
+    _render_mutation(result, state)
+
+
+@xfr_out.command("show")
+def xfr_out_show(ctx: typer.Context, zone: ZoneArg) -> None:
+    """Show the zone's outbound xfr config. API: GET /api/v2/zones/{zone}/outbound"""
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        payload = zones_write_api.show_outbound(client, zone=zone)
+    typer.echo(render(payload, fmt=state.effective_output))
+
+
+@xfr_out.command("set")
+def xfr_out_set(
+    ctx: typer.Context,
+    zone: ZoneArg,
+    secondaries: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--secondary",
+            help="IP of a secondary nameserver. Repeat for multiple; empty = clear.",
+        ),
+    ] = None,
+    tsigkey: Annotated[
+        str | None,
+        typer.Option("--tsigkey", help="Preconfigured TSIG key; omit to clear."),
+    ] = None,
+) -> None:
+    """Set outbound xfr. API: POST /api/v2/zones/{zone}/outbound"""
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        result = zones_write_api.set_outbound(
+            client,
+            zone=zone,
+            secondaries=secondaries,
+            tsigkey=tsigkey,
+            dry_run=state.dry_run,
+        )
+    _render_mutation(result, state)
+
+
+@xfr_out.command("unset")
+def xfr_out_unset(ctx: typer.Context, zone: ZoneArg) -> None:
+    """Clear outbound xfr. API: DELETE /api/v2/zones/{zone}/outbound"""
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        result = zones_write_api.unset_outbound(
+            client,
+            zone=zone,
+            dry_run=state.dry_run,
+        )
+    _render_mutation(result, state)

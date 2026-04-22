@@ -65,7 +65,10 @@ def test_create_zone_dry_run_includes_masters() -> None:
 def test_patch_zone_disabled_dry_run() -> None:
     with _client() as client:
         result = api.patch_zone_disabled(
-            client, zone="example.com", disabled=True, dry_run=True,
+            client,
+            zone="example.com",
+            disabled=True,
+            dry_run=True,
         )
     assert isinstance(result, DryRunResult)
     assert result.request.body == {"zone_disabled": True}
@@ -75,7 +78,10 @@ def test_patch_zone_disabled_dry_run() -> None:
 def test_test_zone_dry_run_adds_test_query() -> None:
     with _client() as client:
         result = api.test_zone(
-            client, domain="example.com", zone_type="master", dry_run=True,
+            client,
+            domain="example.com",
+            zone_type="master",
+            dry_run=True,
         )
     assert isinstance(result, DryRunResult)
     assert result.request.url.endswith("/api/v2/zones?test=1")
