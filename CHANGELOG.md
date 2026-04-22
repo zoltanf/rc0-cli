@@ -31,8 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   implemented as `rc0 zone xfr-in show` / `rc0 zone xfr-out show`.
 - `build_dry_run()` now accepts a `params=` kwarg so dry-run URLs carry
   query strings (needed for `rc0 zone test`).
-- `[tool.coverage.report] fail_under` raised from 78 → 85 to lock in the
-  Phase-2 coverage gain (current: 85.75%).
+- `[tool.coverage.report] fail_under` raised from 78 → 84 to lock in the
+  Phase-2 coverage gain (actual: 85.7% on macOS/Linux, 84.3% on Windows
+  where file-fallback credential paths skip by design).
 
 ### Added (testing)
 - `tests/unit/test_dry_run_parity.py` — every Phase 2 mutation runs twice

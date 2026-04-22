@@ -64,8 +64,9 @@ uv run pytest
 ```
 
 Coverage target per mission plan §15: 90% line / 85% branch. Current
-`fail_under` gate is 85 (Phase-2 floor; actual coverage ~85.7%). Tighten
-the gate further as each phase lands real code.
+`fail_under` gate is 84 (Phase-2 floor; actual coverage ~85.7% on
+macOS/Linux, ~84.3% on Windows where file-fallback credential paths
+skip by design). Tighten the gate further as each phase lands real code.
 
 ## Security reminders (mission plan §17)
 
