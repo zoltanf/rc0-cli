@@ -15,7 +15,7 @@ from rc0.app_state import AppState  # noqa: TC001
 from rc0.client.dry_run import DryRunResult
 from rc0.client.errors import AuthError, ValidationError
 from rc0.client.http import Client
-from rc0.confirm import confirm_yes_no
+from rc0.confirm import confirm_typed, confirm_yes_no
 from rc0.output import OutputFormat, render
 from rc0.output.bind import render_rrsets
 from rc0.rrsets import parse as rrsets_parse
@@ -330,5 +330,51 @@ def delete_cmd(
             dry_run=state.dry_run,
             summary=f"Would delete {change.type} rrset {change.name}.",
             side_effects=["deletes_rrset"],
+        )
+    _render_mutation(result, state)
+
+
+@app.command("apply")
+def apply_cmd(
+    ctx: typer.Context,
+    zone: ZoneArg,
+    from_file: FromFileOpt = None,
+) -> None:
+    """Apply a batch of rrset changes from a JSON/YAML file.
+
+    API: PATCH /api/v2/zones/{zone}/rrsets
+
+    The file format mirrors the API PATCH body exactly (a list of rrset change
+    objects, each with ``changetype`` set to ``add``, ``update`` or ``delete``).
+    See `rc0 help rrset-format` for the full schema.
+    """
+    state: AppState = ctx.obj
+    if from_file is None:
+        raise ValidationError(
+            "`record apply` requires --from-file.",
+            hint="Pass a JSON/YAML file with the rrset changes; see `rc0 help rrset-format`.",
+        )
+    changes = rrsets_parse.from_file(
+        from_file,
+        zone=zone,
+        verbose=state.verbose,
+        warn=_warn(state),
+    )
+    rrsets_validate.validate_changes(changes)
+    if not state.dry_run and not state.yes:
+        confirm_typed(
+            zone,
+            summary=(
+                f"Would apply {len(changes)} rrset change(s) to {zone} (mixed add/update/delete)."
+            ),
+        )
+    with _client(state) as client:
+        result = rrsets_write_api.patch_rrsets(
+            client,
+            zone=zone,
+            changes=changes,
+            dry_run=state.dry_run,
+            summary=f"Would apply {len(changes)} rrset change(s) to {zone}.",
+            side_effects=["applies_rrset_batch"],
         )
     _render_mutation(result, state)

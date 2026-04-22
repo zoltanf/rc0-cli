@@ -287,3 +287,122 @@ def test_record_delete_dry_run_skips_prompt_and_network(
     parsed = json.loads(r.stdout)
     assert parsed["dry_run"] is True
     assert parsed["request"]["body"][0]["changetype"] == "delete"
+
+
+# -------- record apply --------
+
+
+def _write_changes_yaml(path: Path) -> None:
+    path.write_text(
+        """- name: api.example.com.
+  type: A
+  ttl: 3600
+  changetype: add
+  records:
+    - content: 10.0.0.5
+- name: old.example.com.
+  type: A
+  ttl: 3600
+  changetype: delete
+""",
+    )
+
+
+@respx.mock
+def test_record_apply_typed_confirmation_proceeds(
+    cli: CliRunner,
+    isolated_config: Path,
+    tmp_path: Path,
+) -> None:
+    changes = tmp_path / "changes.yaml"
+    _write_changes_yaml(changes)
+    route = respx.patch(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+    ).mock(return_value=httpx.Response(200, json={"status": "ok"}))
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "-o",
+            "json",
+            "record",
+            "apply",
+            "example.com",
+            "--from-file",
+            str(changes),
+        ],
+        input="example.com\n",
+    )
+    assert r.exit_code == 0, r.stdout
+    sent = json.loads(route.calls.last.request.content)
+    assert len(sent) == 2
+    assert {c["changetype"] for c in sent} == {"add", "delete"}
+
+
+@respx.mock
+def test_record_apply_wrong_confirmation_exits_12(
+    cli: CliRunner,
+    isolated_config: Path,
+    tmp_path: Path,
+) -> None:
+    changes = tmp_path / "changes.yaml"
+    _write_changes_yaml(changes)
+    route = respx.patch(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+    ).mock(return_value=httpx.Response(200, json={"status": "ok"}))
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "record",
+            "apply",
+            "example.com",
+            "--from-file",
+            str(changes),
+        ],
+        input="not-the-zone\n",
+    )
+    assert r.exit_code == 12
+    assert not route.called
+
+
+def test_record_apply_requires_from_file(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    r = cli.invoke(
+        app,
+        ["--token", "tk", "record", "apply", "example.com"],
+    )
+    assert r.exit_code == 7
+
+
+def test_record_apply_dry_run(
+    cli: CliRunner,
+    isolated_config: Path,
+    tmp_path: Path,
+) -> None:
+    changes = tmp_path / "changes.yaml"
+    _write_changes_yaml(changes)
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "-o",
+            "json",
+            "--dry-run",
+            "record",
+            "apply",
+            "example.com",
+            "--from-file",
+            str(changes),
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    parsed = json.loads(r.stdout)
+    assert parsed["dry_run"] is True
+    assert parsed["request"]["method"] == "PATCH"
+    assert len(parsed["request"]["body"]) == 2
