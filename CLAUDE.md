@@ -39,8 +39,8 @@ This directory hosts **`rc0`** (PyPI `rc0-cli`), a production-grade Python
 | 1 Read-only | v0.2.0 | **Done** (2026-04-21). Every non-deprecated v2 GET reachable as a CLI command; `rc0 introspect`; auto-paginator speaks both envelope and bare-array shapes; contract test gates the release. |
 | 2 Mutations with dry-run | v0.3.0 | **Done** (2026-04-22). Every non-RRset mutation ships with `--dry-run`; destructive commands prompt for confirmation (typed for zones, y/N for tsig + ack-all); `tests/unit/test_dry_run_parity.py` gates the release. |
 | 3 RRsets | v0.4.0 | **Done** (2026-04-22). Full RRset CRUD surface: add/update/delete/apply/replace-all/clear with flag, JSON/YAML, and BIND zone-file inputs; client-side validation (§12); dry-run parity extended; `rrset-format` topic. |
-| 4 DNSSEC | v0.5.0 | Pending — next up. |
-| 5 ACME | v0.6.0 | Pending. |
+| 4 DNSSEC | v0.5.0 | **Done** (2026-04-22). sign/unsign/keyrollover/ack-ds with dry-run parity; simulate sub-group (test-env gated); `dnssec-workflow` topic. |
+| 5 ACME | v0.6.0 | Pending — next up. |
 | 6 Packaging & distribution | v0.9.0 | Pending. |
 | 7 v1.0.0 polish | v1.0.0 | Pending. |
 

@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] — DNSSEC
+
+### Added
+- `rc0 dnssec sign <zone>` — POST `/zones/{zone}/sign`; optional `--ignore-safety-period` and `--enable-cds-cdnskey` flags; no confirmation.
+- `rc0 dnssec unsign <zone>` — POST `/zones/{zone}/unsign`; requires `--force` flag + y/N confirmation to prevent accidental key removal.
+- `rc0 dnssec keyrollover <zone>` — POST `/zones/{zone}/keyrollover`; y/N confirmation (`-y` to skip).
+- `rc0 dnssec ack-ds <zone>` — POST `/zones/{zone}/dsupdate`; no confirmation; clears DSUPDATE messages from the queue.
+- `rc0 dnssec simulate dsseen <zone>` — POST `/zones/{zone}/simulate/dsseen`; test environments only (blocked against production API).
+- `rc0 dnssec simulate dsremoved <zone>` — POST `/zones/{zone}/simulate/dsremoved`; test environments only.
+- Topic help: `dnssec-workflow` (`rc0 help dnssec-workflow`) — full lifecycle: sign → ack DS → keyrollover → unsign, plus simulate usage.
+- Dry-run parity extended: `test_dry_run_parity.py` now covers all four network-capable DNSSEC mutations.
+
 ## [0.4.0] — RRsets
 
 ### Added

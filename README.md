@@ -6,7 +6,7 @@
 [RcodeZero Anycast DNS API](https://my.rcodezero.at/openapi/) — safe by
 default, scriptable for agents, and feature-complete for humans.
 
-**Status:** pre-alpha (v0.1.0 bootstrap). Do not use for production zones yet.
+**Status:** alpha (v0.4.0 — full RRset CRUD landed). Do not use for production zones yet.
 
 ## Quickstart (placeholder — filled in during Phase 7)
 

@@ -245,6 +245,35 @@ PARITY_CASES: list[tuple[str, str, list[str], int, Any]] = [
         204,
         None,
     ),
+    # --- Phase 4 ---
+    (
+        "POST",
+        "https://my.rcodezero.at/api/v2/zones/example.com/sign",
+        ["dnssec", "sign", "example.com"],
+        200,
+        {"status": "ok"},
+    ),
+    (
+        "POST",
+        "https://my.rcodezero.at/api/v2/zones/example.com/unsign",
+        ["-y", "dnssec", "unsign", "example.com", "--force"],
+        200,
+        {"status": "ok"},
+    ),
+    (
+        "POST",
+        "https://my.rcodezero.at/api/v2/zones/example.com/keyrollover",
+        ["-y", "dnssec", "keyrollover", "example.com"],
+        200,
+        {"status": "ok"},
+    ),
+    (
+        "POST",
+        "https://my.rcodezero.at/api/v2/zones/example.com/dsupdate",
+        ["dnssec", "ack-ds", "example.com"],
+        200,
+        {"status": "ok"},
+    ),
 ]
 
 
