@@ -14,6 +14,7 @@ from rc0.models.rrset_write import (
 )
 from rc0.validation.rrsets import (
     enforce_cname_exclusivity,
+    enforce_cname_exclusivity_replacement,
     qualify_name,
     validate_changes,
     validate_content_for_type,
@@ -57,6 +58,20 @@ def test_qualify_name_rejects_empty() -> None:
         qualify_name("", zone="example.com")
 
 
+def test_qualify_name_zone_apex_without_dot_gets_dot() -> None:
+    out, rewritten = qualify_name("example.com", zone="example.com")
+    assert out == "example.com."
+    assert rewritten is True
+
+
+def test_qualify_name_label_prefixed_substring_treated_as_unrelated() -> None:
+    # "badexample.com" does NOT end at a label boundary inside "example.com" zone.
+    # Must be treated as out-of-zone and fully qualified under the zone.
+    out, rewritten = qualify_name("badexample.com", zone="example.com")
+    assert out == "badexample.com.example.com."
+    assert rewritten is True
+
+
 def test_validate_ttl_below_floor_raises() -> None:
     with pytest.raises(ValidationError) as exc:
         validate_ttl(30, context="www.example.com. A")
@@ -93,6 +108,15 @@ def test_validate_content_mx_requires_priority() -> None:
         validate_content_for_type("MX", "mail.example.com.", name="example.com.")
     with pytest.raises(ValidationError):
         validate_content_for_type("MX", "high mail.example.com.", name="example.com.")
+
+
+def test_validate_content_mx_rejects_out_of_range_priority() -> None:
+    with pytest.raises(ValidationError):
+        validate_content_for_type(
+            "MX",
+            "99999 mail.example.com.",
+            name="example.com.",
+        )
 
 
 def test_enforce_cname_exclusivity_rejects_conflict() -> None:
@@ -194,3 +218,22 @@ def test_validate_changes_delete_skips_content_validation() -> None:
         ),
     ]
     validate_changes(changes)
+
+
+def test_enforce_cname_exclusivity_replacement_rejects_conflict() -> None:
+    rrsets = [
+        RRsetInput(
+            name="www.example.com.",
+            type="CNAME",
+            ttl=3600,
+            records=[RecordInput(content="host.example.com.")],
+        ),
+        RRsetInput(
+            name="www.example.com.",
+            type="A",
+            ttl=3600,
+            records=[RecordInput(content="10.0.0.1")],
+        ),
+    ]
+    with pytest.raises(ValidationError):
+        enforce_cname_exclusivity_replacement(rrsets)
