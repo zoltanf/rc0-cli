@@ -8,9 +8,12 @@ import typer
 
 from rc0 import auth as auth_core
 from rc0.api import messages as messages_api
+from rc0.api import messages_write as messages_write_api
 from rc0.app_state import AppState  # noqa: TC001
+from rc0.client.dry_run import DryRunResult
 from rc0.client.errors import AuthError, ValidationError
 from rc0.client.http import Client
+from rc0.confirm import confirm_yes_no
 from rc0.output import render
 
 app = typer.Typer(
@@ -85,4 +88,52 @@ def list_cmd(
             fmt=state.effective_output,
             columns=["id", "domain", "date", "type", "comment"],
         ),
+    )
+
+
+MessageIdArg = Annotated[int, typer.Argument(help="Message ID to acknowledge.")]
+
+
+def _render_mutation(result: DryRunResult | dict[str, object], state: AppState) -> None:
+    payload = result.to_dict() if isinstance(result, DryRunResult) else result
+    typer.echo(render(payload, fmt=state.effective_output))
+
+
+@app.command("ack")
+def ack_cmd(ctx: typer.Context, message_id: MessageIdArg) -> None:
+    """Acknowledge (delete) one message. API: DELETE /api/v2/messages/{id}"""
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        result = messages_write_api.ack_message(
+            client,
+            message_id=message_id,
+            dry_run=state.dry_run,
+        )
+    _render_mutation(result, state)
+
+
+@app.command("ack-all")
+def ack_all_cmd(ctx: typer.Context) -> None:
+    """Loop: poll + ack until the queue is empty. API: GET /messages + DELETE /messages/{id}"""
+    state: AppState = ctx.obj
+    if state.dry_run:
+        # Not a single HTTP call — emit a dry-run envelope with just a summary.
+        # The live branch can't know the queue depth without actually draining it.
+        typer.echo(
+            render(
+                {
+                    "dry_run": True,
+                    "summary": "Would acknowledge every queued account message until empty.",
+                    "side_effects": ["drains_message_queue"],
+                },
+                fmt=state.effective_output,
+            ),
+        )
+        return
+    if not state.yes:
+        confirm_yes_no("Would acknowledge every queued account message.")
+    with _client(state) as client:
+        acked = messages_write_api.ack_all(client)
+    typer.echo(
+        render({"acknowledged": acked, "count": len(acked)}, fmt=state.effective_output),
     )

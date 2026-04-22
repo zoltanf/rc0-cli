@@ -1,17 +1,21 @@
-"""`rc0 tsig` — list / show + deprecated list-out."""
+"""`rc0 tsig` — list / show + deprecated list-out + write commands."""
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Annotated
 
 import typer
 
 from rc0 import auth as auth_core
 from rc0.api import tsig as tsig_api
+from rc0.api import tsig_write as tsig_write_api
 from rc0.app_state import AppState  # noqa: TC001
+from rc0.client.dry_run import DryRunResult
 from rc0.client.errors import AuthError, ValidationError
 from rc0.client.http import Client
 from rc0.commands._deprecated import deprecated_warn
+from rc0.confirm import confirm_yes_no
 from rc0.output import render
 
 app = typer.Typer(name="tsig", help="Manage TSIG keys.", no_args_is_help=True)
@@ -92,3 +96,83 @@ def list_out_cmd(ctx: typer.Context) -> None:
     with _client(state) as client:
         payload = tsig_api.list_tsig_out_deprecated(client)
     typer.echo(render(payload, fmt=state.effective_output))
+
+
+# ---------------------------------------------------------- Phase 2 mutations
+
+
+class AlgorithmChoice(StrEnum):
+    """Typer-friendly enum of the RcodeZero-supported TSIG algorithms."""
+
+    hmac_md5 = "hmac-md5"
+    hmac_sha1 = "hmac-sha1"
+    hmac_sha224 = "hmac-sha224"
+    hmac_sha256 = "hmac-sha256"
+    hmac_sha384 = "hmac-sha384"
+    hmac_sha512 = "hmac-sha512"
+
+
+AlgorithmOpt = Annotated[
+    AlgorithmChoice,
+    typer.Option("--algorithm", help="TSIG algorithm.", case_sensitive=False),
+]
+SecretOpt = Annotated[
+    str,
+    typer.Option("--secret", help="Base64-encoded shared secret."),
+]
+
+
+def _render_mutation(result: DryRunResult | dict[str, object], state: AppState) -> None:
+    payload = result.to_dict() if isinstance(result, DryRunResult) else result
+    typer.echo(render(payload, fmt=state.effective_output))
+
+
+@app.command("add")
+def add_cmd(
+    ctx: typer.Context,
+    name: NameArg,
+    algorithm: AlgorithmOpt,
+    secret: SecretOpt,
+) -> None:
+    """Add a TSIG key. API: POST /api/v2/tsig"""
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        result = tsig_write_api.add_tsig(
+            client,
+            name=name,
+            algorithm=algorithm.value,
+            secret=secret,
+            dry_run=state.dry_run,
+        )
+    _render_mutation(result, state)
+
+
+@app.command("update")
+def update_cmd(
+    ctx: typer.Context,
+    name: NameArg,
+    algorithm: AlgorithmOpt,
+    secret: SecretOpt,
+) -> None:
+    """Update a TSIG key. API: PUT /api/v2/tsig/{keyname}"""
+    state: AppState = ctx.obj
+    with _client(state) as client:
+        result = tsig_write_api.update_tsig(
+            client,
+            name=name,
+            algorithm=algorithm.value,
+            secret=secret,
+            dry_run=state.dry_run,
+        )
+    _render_mutation(result, state)
+
+
+@app.command("delete")
+def delete_cmd(ctx: typer.Context, name: NameArg) -> None:
+    """Delete a TSIG key. API: DELETE /api/v2/tsig/{keyname}"""
+    state: AppState = ctx.obj
+    if not state.dry_run and not state.yes:
+        confirm_yes_no(f"Would delete TSIG key {name}.")
+    with _client(state) as client:
+        result = tsig_write_api.delete_tsig(client, name=name, dry_run=state.dry_run)
+    _render_mutation(result, state)

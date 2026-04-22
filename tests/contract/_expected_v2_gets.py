@@ -1,9 +1,4 @@
-"""Map of v2 GET endpoints → CLI command path for the contract test.
-
-Whenever ``scripts/update-openapi.sh`` bumps the pinned spec and a new
-endpoint appears, add a mapping here. The test fails loudly if a spec
-endpoint is not represented.
-"""
+"""Map of v2 GET endpoints → CLI command path for the contract test."""
 
 from __future__ import annotations
 
@@ -12,8 +7,8 @@ V2_GET_TO_COMMAND: dict[str, tuple[str, ...]] = {
     "/api/v2/zones/{zone}": ("zone", "show"),
     "/api/v2/zones/{zone}/status": ("zone", "status"),
     "/api/v2/zones/{zone}/rrsets": ("record", "list"),
-    "/api/v2/zones/{zone}/inbound": ("zone", "xfr-in", "show"),  # Phase 2
-    "/api/v2/zones/{zone}/outbound": ("zone", "xfr-out", "show"),  # Phase 2
+    "/api/v2/zones/{zone}/inbound": ("zone", "xfr-in", "show"),
+    "/api/v2/zones/{zone}/outbound": ("zone", "xfr-out", "show"),
     "/api/v2/tsig": ("tsig", "list"),
     "/api/v2/tsig/{keyname}": ("tsig", "show"),
     "/api/v2/tsig/out": ("tsig", "list-out"),
@@ -37,11 +32,6 @@ V2_GET_TO_COMMAND: dict[str, tuple[str, ...]] = {
     "/api/v2/reports/domainlist": ("report", "domainlist"),
 }
 
-# Paths that the contract test tolerates as "mapped but not yet implemented".
-# Remove entries here as later phases land the commands.
-PHASE_2_OR_LATER: frozenset[str] = frozenset(
-    {
-        "/api/v2/zones/{zone}/inbound",
-        "/api/v2/zones/{zone}/outbound",
-    },
-)
+# Populated by phases not yet landed. Phase 2 cleared everything that was
+# previously deferred.
+PHASE_2_OR_LATER: frozenset[str] = frozenset()

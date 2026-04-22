@@ -1,0 +1,210 @@
+"""Dry-run vs. live request parity for every Phase-2 mutation."""
+
+from __future__ import annotations
+
+import json
+from typing import TYPE_CHECKING, Any
+
+import httpx
+import pytest
+import respx
+from typer.testing import CliRunner
+
+from rc0.app import app
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+
+@pytest.fixture
+def cli() -> CliRunner:
+    return CliRunner()
+
+
+# (method, url, args, mock-status, mock-body)
+PARITY_CASES: list[tuple[str, str, list[str], int, Any]] = [
+    (
+        "POST",
+        "https://my.rcodezero.at/api/v2/zones",
+        ["zone", "create", "example.com", "--type", "master", "--master", "10.0.0.1"],
+        201,
+        {"status": "ok"},
+    ),
+    (
+        "PUT",
+        "https://my.rcodezero.at/api/v2/zones/example.com",
+        ["zone", "update", "example.com", "--master", "10.0.0.2"],
+        200,
+        {"status": "ok"},
+    ),
+    (
+        "PATCH",
+        "https://my.rcodezero.at/api/v2/zones/example.com",
+        ["zone", "enable", "example.com"],
+        200,
+        {"status": "ok"},
+    ),
+    (
+        "PATCH",
+        "https://my.rcodezero.at/api/v2/zones/example.com",
+        ["zone", "disable", "example.com"],
+        200,
+        {"status": "ok"},
+    ),
+    (
+        "DELETE",
+        "https://my.rcodezero.at/api/v2/zones/example.com",
+        ["-y", "zone", "delete", "example.com"],
+        204,
+        None,
+    ),
+    (
+        "POST",
+        "https://my.rcodezero.at/api/v2/zones/example.com/retrieve",
+        ["zone", "retrieve", "example.com"],
+        200,
+        {"status": "ok"},
+    ),
+    (
+        "POST",
+        "https://my.rcodezero.at/api/v2/zones/example.com/inbound",
+        ["zone", "xfr-in", "set", "example.com", "--tsigkey", "k"],
+        200,
+        {"status": "ok"},
+    ),
+    (
+        "DELETE",
+        "https://my.rcodezero.at/api/v2/zones/example.com/inbound",
+        ["zone", "xfr-in", "unset", "example.com"],
+        204,
+        None,
+    ),
+    (
+        "POST",
+        "https://my.rcodezero.at/api/v2/zones/example.com/outbound",
+        ["zone", "xfr-out", "set", "example.com", "--tsigkey", "k", "--secondary", "10.0.0.1"],
+        200,
+        {"status": "ok"},
+    ),
+    (
+        "DELETE",
+        "https://my.rcodezero.at/api/v2/zones/example.com/outbound",
+        ["zone", "xfr-out", "unset", "example.com"],
+        204,
+        None,
+    ),
+    (
+        "POST",
+        "https://my.rcodezero.at/api/v2/tsig",
+        ["tsig", "add", "k1", "--algorithm", "hmac-sha256", "--secret", "abc"],
+        201,
+        {"status": "ok"},
+    ),
+    (
+        "PUT",
+        "https://my.rcodezero.at/api/v2/tsig/k1",
+        ["tsig", "update", "k1", "--algorithm", "hmac-sha512", "--secret", "xyz"],
+        200,
+        {"status": "ok"},
+    ),
+    (
+        "DELETE",
+        "https://my.rcodezero.at/api/v2/tsig/k1",
+        ["-y", "tsig", "delete", "k1"],
+        204,
+        None,
+    ),
+    (
+        "PUT",
+        "https://my.rcodezero.at/api/v2/settings/secondaries",
+        ["settings", "secondaries", "set", "--ip", "10.0.0.1"],
+        200,
+        {"status": "ok"},
+    ),
+    (
+        "DELETE",
+        "https://my.rcodezero.at/api/v2/settings/secondaries",
+        ["settings", "secondaries", "unset"],
+        204,
+        None,
+    ),
+    (
+        "PUT",
+        "https://my.rcodezero.at/api/v2/settings/tsig/in",
+        ["settings", "tsig-in", "set", "k1"],
+        200,
+        {"status": "ok"},
+    ),
+    (
+        "DELETE",
+        "https://my.rcodezero.at/api/v2/settings/tsig/in",
+        ["settings", "tsig-in", "unset"],
+        204,
+        None,
+    ),
+    (
+        "PUT",
+        "https://my.rcodezero.at/api/v2/settings/tsig/out",
+        ["settings", "tsig-out", "set", "k1"],
+        200,
+        {"status": "ok"},
+    ),
+    (
+        "DELETE",
+        "https://my.rcodezero.at/api/v2/settings/tsig/out",
+        ["settings", "tsig-out", "unset"],
+        204,
+        None,
+    ),
+    (
+        "DELETE",
+        "https://my.rcodezero.at/api/v2/messages/7",
+        ["messages", "ack", "7"],
+        204,
+        None,
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("method", "url", "args", "status", "body"),
+    PARITY_CASES,
+    ids=[" ".join(c[2]) for c in PARITY_CASES],
+)
+@respx.mock
+def test_dry_run_parity(
+    cli: CliRunner,
+    isolated_config: Path,
+    method: str,
+    url: str,
+    args: list[str],
+    status: int,
+    body: Any,
+) -> None:
+    # 1. Dry-run: capture what we would send.
+    dry = cli.invoke(
+        app,
+        ["--token", "tk", "-o", "json", "--dry-run", *args],
+    )
+    assert dry.exit_code == 0, dry.stdout
+    dry_payload = json.loads(dry.stdout)
+    dry_req = dry_payload["request"]
+
+    # 2. Live: mock the exact URL and method, invoke the same args.
+    respx.request(method, url).mock(
+        return_value=httpx.Response(
+            status,
+            json=body if body is not None else {},
+        )
+    )
+    live = cli.invoke(app, ["--token", "tk", "-o", "json", *args])
+    assert live.exit_code == 0, live.stdout
+    live_request = respx.calls.last.request
+
+    # 3. Compare: method, URL (path+query), JSON body.
+    assert dry_req["method"] == method
+    assert live_request.method == method
+    assert dry_req["url"] == str(live_request.url)
+    dry_body = dry_req.get("body")
+    live_body = json.loads(live_request.content) if live_request.content else None
+    assert dry_body == live_body
