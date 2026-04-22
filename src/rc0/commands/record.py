@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
@@ -132,25 +131,6 @@ def export_cmd(
 
 
 # ---------------------------------------------------------- Phase 3 mutations
-
-
-class RecordType(StrEnum):
-    """A permissive enum — Typer only uses it for case-insensitive parsing.
-
-    We don't fence on type here: the API validates the RR type, and adding a
-    whitelist would block valid new types (SVCB, HTTPS, …) the moment they ship.
-    """
-
-    A = "A"
-    AAAA = "AAAA"
-    CNAME = "CNAME"
-    MX = "MX"
-    TXT = "TXT"
-    NS = "NS"
-    SRV = "SRV"
-    CAA = "CAA"
-    PTR = "PTR"
-    SOA = "SOA"
 
 
 NameOpt = Annotated[

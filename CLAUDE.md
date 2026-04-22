@@ -38,8 +38,8 @@ This directory hosts **`rc0`** (PyPI `rc0-cli`), a production-grade Python
 | 0 Bootstrap | v0.1.0 | **Done** (2026-04-21). Project skeleton, auth, config, HTTP client, output formatters, topic help. |
 | 1 Read-only | v0.2.0 | **Done** (2026-04-21). Every non-deprecated v2 GET reachable as a CLI command; `rc0 introspect`; auto-paginator speaks both envelope and bare-array shapes; contract test gates the release. |
 | 2 Mutations with dry-run | v0.3.0 | **Done** (2026-04-22). Every non-RRset mutation ships with `--dry-run`; destructive commands prompt for confirmation (typed for zones, y/N for tsig + ack-all); `tests/unit/test_dry_run_parity.py` gates the release. |
-| 3 RRsets | v0.4.0 | Pending — next up. |
-| 4 DNSSEC | v0.5.0 | Pending. |
+| 3 RRsets | v0.4.0 | **Done** (2026-04-22). Full RRset CRUD surface: add/update/delete/apply/replace-all/clear with flag, JSON/YAML, and BIND zone-file inputs; client-side validation (§12); dry-run parity extended; `rrset-format` topic. |
+| 4 DNSSEC | v0.5.0 | Pending — next up. |
 | 5 ACME | v0.6.0 | Pending. |
 | 6 Packaging & distribution | v0.9.0 | Pending. |
 | 7 v1.0.0 polish | v1.0.0 | Pending. |
@@ -64,9 +64,8 @@ uv run pytest
 ```
 
 Coverage target per mission plan §15: 90% line / 85% branch. Current
-`fail_under` gate is 84 (Phase-2 floor; actual coverage ~85.7% on
-macOS/Linux, ~84.3% on Windows where file-fallback credential paths
-skip by design). Tighten the gate further as each phase lands real code.
+`fail_under` gate is 86 (Phase-3 floor; actual coverage ~86.9% on
+macOS/Linux). Tighten the gate further as each phase lands real code.
 
 ## Security reminders (mission plan §17)
 

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] — RRsets
+
+### Added
+- `rc0 record add <zone>` — PATCH a single RRset via flags; no confirmation.
+- `rc0 record update <zone>` — PATCH changetype `update` via flags; no confirmation.
+- `rc0 record delete <zone>` — PATCH changetype `delete` via flags; y/N confirmation (`-y` to skip).
+- `rc0 record apply <zone> --from-file FILE` — PATCH from a JSON/YAML changes file (mixed changetypes); typed-zone confirmation.
+- `rc0 record replace-all <zone> --from-file FILE | --zone-file BIND` — PUT full zone replacement from JSON/YAML or BIND zone file; typed-zone confirmation.
+- `rc0 record clear <zone>` — DELETE all non-apex rrsets; typed-zone confirmation.
+- Client-side validation for all RRset mutations (§12): TTL ≥ 60 s, A/AAAA content sanity, MX `priority content` format (priority 0–65535), PATCH ≤ 1000 changes, PUT ≤ 3000 rrsets, CNAME exclusivity. Validation errors exit 7.
+- Three input parsers in `rc0.rrsets.parse`: flag-based (`from_flags`), JSON/YAML file (`from_file`), BIND zone-file (`from_zonefile` via dnspython).
+- Trailing-dot auto-qualification: names without a trailing dot are silently qualified to FQDN; `--verbose` prints a warning per corrected label.
+- Topic help: `rrset-format` (`rc0 help rrset-format`).
+- Dry-run parity extended: `test_dry_run_parity.py` now covers all six new rrset mutations (4 parametrised + 2 fixture-based standalone tests).
+
+### Changed
+- `[tool.coverage.report] fail_under` raised from 84 → 86 to lock in Phase-3 coverage gain (actual: ~86.9% on macOS/Linux).
+
 ## [0.3.0] — Mutations with dry-run
 
 ### Added
@@ -90,7 +108,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Error hierarchy mapped to exit codes per mission plan §11.
 - Topic help: `authentication`, `exit-codes`, `output-formats`.
 
-[Unreleased]: https://github.com/zoltanf/rc0-cli/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/zoltanf/rc0-cli/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/zoltanf/rc0-cli/releases/tag/v0.4.0
 [0.3.0]: https://github.com/zoltanf/rc0-cli/releases/tag/v0.3.0
 [0.2.0]: https://github.com/zoltanf/rc0-cli/releases/tag/v0.2.0
 [0.1.0]: https://github.com/zoltanf/rc0-cli/releases/tag/v0.1.0
