@@ -406,3 +406,138 @@ def test_record_apply_dry_run(
     assert parsed["dry_run"] is True
     assert parsed["request"]["method"] == "PATCH"
     assert len(parsed["request"]["body"]) == 2
+
+
+# -------- record replace-all --------
+
+
+def _write_replacement_yaml(path: Path) -> None:
+    # A full replacement file has NO `changetype` — every row is the desired
+    # final state of the RRset at that (name, type).
+    path.write_text(
+        """- name: example.com.
+  type: SOA
+  ttl: 3600
+  records:
+    - content: ns1.example.com. admin.example.com. 1 7200 3600 1209600 3600
+- name: www.example.com.
+  type: A
+  ttl: 3600
+  records:
+    - content: 10.0.0.1
+""",
+    )
+
+
+def _write_zone_file(path: Path) -> None:
+    path.write_text(
+        "$ORIGIN example.com.\n"
+        "$TTL 3600\n"
+        "@     IN SOA ns1.example.com. admin.example.com. 1 7200 3600 1209600 3600\n"
+        "@     IN NS  ns1.example.com.\n"
+        "www   IN A   10.0.0.1\n",
+    )
+
+
+@respx.mock
+def test_record_replace_all_from_file(
+    cli: CliRunner,
+    isolated_config: Path,
+    tmp_path: Path,
+) -> None:
+    src = tmp_path / "rep.yaml"
+    _write_replacement_yaml(src)
+    route = respx.put(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+    ).mock(return_value=httpx.Response(200, json={"status": "ok"}))
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "-o",
+            "json",
+            "record",
+            "replace-all",
+            "example.com",
+            "--from-file",
+            str(src),
+        ],
+        input="example.com\n",
+    )
+    assert r.exit_code == 0, r.stdout
+    sent = json.loads(route.calls.last.request.content)
+    assert "rrsets" in sent
+    assert {r["type"] for r in sent["rrsets"]} == {"SOA", "A"}
+
+
+@respx.mock
+def test_record_replace_all_from_zonefile(
+    cli: CliRunner,
+    isolated_config: Path,
+    tmp_path: Path,
+) -> None:
+    src = tmp_path / "example.com.zone"
+    _write_zone_file(src)
+    route = respx.put(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+    ).mock(return_value=httpx.Response(200, json={"status": "ok"}))
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "-y",
+            "-o",
+            "json",
+            "record",
+            "replace-all",
+            "example.com",
+            "--zone-file",
+            str(src),
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    sent = json.loads(route.calls.last.request.content)
+    assert "rrsets" in sent
+    types = {r["type"] for r in sent["rrsets"]}
+    assert "SOA" in types and "NS" in types and "A" in types
+
+
+def test_record_replace_all_requires_one_source(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    r = cli.invoke(
+        app,
+        ["--token", "tk", "record", "replace-all", "example.com"],
+    )
+    assert r.exit_code == 7
+
+
+def test_record_replace_all_rejects_both_sources(
+    cli: CliRunner,
+    isolated_config: Path,
+    tmp_path: Path,
+) -> None:
+    yaml_src = tmp_path / "a.yaml"
+    yaml_src.write_text("[]")
+    zf = tmp_path / "a.zone"
+    zf.write_text(
+        "$ORIGIN example.com.\n@ 3600 IN SOA ns1.example.com. admin.example.com. 1 60 60 60 60\n",
+    )
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "record",
+            "replace-all",
+            "example.com",
+            "--from-file",
+            str(yaml_src),
+            "--zone-file",
+            str(zf),
+        ],
+    )
+    assert r.exit_code == 7

@@ -24,6 +24,8 @@ from rc0.validation import rrsets as rrsets_validate
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from rc0.models.rrset_write import RRsetInput
+
 app = typer.Typer(name="record", help="Manage RRsets.", no_args_is_help=True)
 
 ZoneArg = Annotated[str, typer.Argument(help="Zone apex, e.g. example.com.")]
@@ -378,3 +380,114 @@ def apply_cmd(
             side_effects=["applies_rrset_batch"],
         )
     _render_mutation(result, state)
+
+
+@app.command("replace-all")
+def replace_all_cmd(
+    ctx: typer.Context,
+    zone: ZoneArg,
+    from_file: FromFileOpt = None,
+    zone_file: ZoneFileOpt = None,
+) -> None:
+    """Full zone replacement (zone-transfer semantics).
+
+    API: PUT /api/v2/zones/{zone}/rrsets
+
+    Accepts exactly one of:
+      --from-file  JSON/YAML file of rrsets (no `changetype` — each row is the
+                   desired final state at that name/type).
+      --zone-file  BIND zone file; parsed via dnspython.
+
+    Replaces every rrset in the zone. This is destructive: anything not in the
+    input disappears. Prompts for typed-zone confirmation by default.
+    """
+    state: AppState = ctx.obj
+    if (from_file is None) == (zone_file is None):
+        raise ValidationError(
+            "`record replace-all` needs exactly one of --from-file or --zone-file.",
+            hint="JSON/YAML for API-shape input; BIND for zone-file input.",
+        )
+    if from_file is not None:
+        # The PATCH-shape file parser would fail on rows without changetype; we
+        # need the PUT shape. Load rows directly and build RRsetInput.
+        rrsets = _load_rrsets_from_file(
+            from_file,
+            zone=zone,
+            verbose=state.verbose,
+            warn=_warn(state),
+        )
+    else:
+        assert zone_file is not None
+        rrsets = rrsets_parse.from_zonefile(zone_file, zone=zone)
+    rrsets_validate.validate_replacement(rrsets)
+    if not state.dry_run and not state.yes:
+        confirm_typed(
+            zone,
+            summary=(
+                f"Would REPLACE every rrset in {zone} with {len(rrsets)} rrset(s). "
+                "This discards anything not in the input."
+            ),
+        )
+    with _client(state) as client:
+        result = rrsets_write_api.put_rrsets(
+            client,
+            zone=zone,
+            rrsets=rrsets,
+            dry_run=state.dry_run,
+            summary=f"Would replace every rrset in {zone} with {len(rrsets)} rrset(s).",
+        )
+    _render_mutation(result, state)
+
+
+def _load_rrsets_from_file(
+    path: Path,
+    *,
+    zone: str,
+    verbose: int,
+    warn: Callable[[str], None],
+) -> list[RRsetInput]:
+    """Load a JSON/YAML file as RRsetInput[] (PUT body, no `changetype`)."""
+    import json as _json
+
+    import yaml as _yaml
+    from pydantic import ValidationError as _PydanticValidationError
+
+    from rc0.models.rrset_write import RRsetInput
+
+    suffix = path.suffix.lower()
+    if suffix not in {".json", ".yaml", ".yml"}:
+        raise ValidationError(
+            f"Unsupported --from-file extension {suffix!r}.",
+            hint="Use .json, .yaml, or .yml.",
+        )
+    text = path.read_text(encoding="utf-8")
+    raw = _json.loads(text) if suffix == ".json" else _yaml.safe_load(text)
+    if not isinstance(raw, list):
+        raise ValidationError(
+            f"{path} must be a list of rrset objects.",
+            hint="See `rc0 help rrset-format`.",
+        )
+    out: list[RRsetInput] = []
+    for i, row in enumerate(raw):
+        if not isinstance(row, dict):
+            raise ValidationError(
+                f"Item {i} in {path} must be an object.",
+            )
+        raw_name = row.get("name", "")
+        if not isinstance(raw_name, str):
+            raise ValidationError(f"Item {i} in {path} has no string `name`.")
+        qualified, rewritten = rrsets_validate.qualify_name(raw_name, zone=zone)
+        if rewritten and verbose >= 1:
+            warn(f"auto-qualified name {raw_name!r} → {qualified!r}")
+        try:
+            out.append(RRsetInput.model_validate({**row, "name": qualified}))
+        except _PydanticValidationError as exc:
+            raise ValidationError(
+                f"Item {i} in {path} failed validation: "
+                + "; ".join(
+                    f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors()
+                ),
+                hint="`record replace-all --from-file` expects rows without "
+                "`changetype` — each row is the desired final state.",
+            ) from exc
+    return out
