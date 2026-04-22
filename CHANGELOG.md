@@ -7,6 +7,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] — Mutations with dry-run
+
+### Added
+- `rc0 zone create/update/enable/disable/delete/retrieve/test`.
+- `rc0 zone xfr-in show/set/unset` and `rc0 zone xfr-out show/set/unset`.
+- `rc0 tsig add/update/delete`.
+- `rc0 settings secondaries/tsig-in/tsig-out set/unset`.
+- `rc0 messages ack/ack-all`.
+- `--dry-run` on every new mutation. Exit code 0; machine output carries
+  `"dry_run": true`. The paging executor (`rc0.client.mutations`) shares
+  one dispatcher between the dry-run and live code paths.
+- Confirmation prompts for destructive operations: `zone delete` requires
+  typing the zone name, `tsig delete` and `messages ack-all` accept a
+  simple y/N. `-y` / `--yes` skips; `--dry-run` skips.
+- Topic help: `dry-run`.
+- Pydantic `Rc0WriteModel` base (with `extra="forbid"`) for every request
+  body — typos and drift-with-the-spec fail loudly at construction time.
+
+### Changed
+- Contract test `PHASE_2_OR_LATER` tolerance set emptied — both
+  `/zones/{zone}/inbound` and `/zones/{zone}/outbound` GET paths are now
+  implemented as `rc0 zone xfr-in show` / `rc0 zone xfr-out show`.
+- `build_dry_run()` now accepts a `params=` kwarg so dry-run URLs carry
+  query strings (needed for `rc0 zone test`).
+- `[tool.coverage.report] fail_under` raised from 78 → 85 to lock in the
+  Phase-2 coverage gain (current: 85.75%).
+
+### Added (testing)
+- `tests/unit/test_dry_run_parity.py` — every Phase 2 mutation runs twice
+  (dry-run + mocked live) and the captured HTTP request must be
+  byte-identical (method, URL, body). This is the mission-plan §15 gate.
+- Full CLI integration coverage for every new command.
+- Unit coverage for `rc0.confirm` (typed + yes/no flows).
+
 ## [0.2.0] — Read-only commands
 
 ### Added
@@ -55,6 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Error hierarchy mapped to exit codes per mission plan §11.
 - Topic help: `authentication`, `exit-codes`, `output-formats`.
 
-[Unreleased]: https://github.com/zoltanf/rc0-cli/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/zoltanf/rc0-cli/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/zoltanf/rc0-cli/releases/tag/v0.3.0
 [0.2.0]: https://github.com/zoltanf/rc0-cli/releases/tag/v0.2.0
 [0.1.0]: https://github.com/zoltanf/rc0-cli/releases/tag/v0.1.0

@@ -37,8 +37,8 @@ This directory hosts **`rc0`** (PyPI `rc0-cli`), a production-grade Python
 |---|---|---|
 | 0 Bootstrap | v0.1.0 | **Done** (2026-04-21). Project skeleton, auth, config, HTTP client, output formatters, topic help. |
 | 1 Read-only | v0.2.0 | **Done** (2026-04-21). Every non-deprecated v2 GET reachable as a CLI command; `rc0 introspect`; auto-paginator speaks both envelope and bare-array shapes; contract test gates the release. |
-| 2 Mutations with dry-run | v0.3.0 | Pending — next up. |
-| 3 RRsets | v0.4.0 | Pending. |
+| 2 Mutations with dry-run | v0.3.0 | **Done** (2026-04-22). Every non-RRset mutation ships with `--dry-run`; destructive commands prompt for confirmation (typed for zones, y/N for tsig + ack-all); `tests/unit/test_dry_run_parity.py` gates the release. |
+| 3 RRsets | v0.4.0 | Pending — next up. |
 | 4 DNSSEC | v0.5.0 | Pending. |
 | 5 ACME | v0.6.0 | Pending. |
 | 6 Packaging & distribution | v0.9.0 | Pending. |
@@ -64,7 +64,7 @@ uv run pytest
 ```
 
 Coverage target per mission plan §15: 90% line / 85% branch. Current
-`fail_under` gate is 78 (Phase-1 floor; actual coverage ~81%). Tighten
+`fail_under` gate is 85 (Phase-2 floor; actual coverage ~85.7%). Tighten
 the gate further as each phase lands real code.
 
 ## Security reminders (mission plan §17)
