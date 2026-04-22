@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] — ACME
+
+### Added
+- `rc0 acme zone-exists <zone>` — GET `/api/v1/acme/{zone}`; confirms the zone is configured for ACME; exits 6 if not found.
+- `rc0 acme list-challenges <zone>` — GET `/api/v1/acme/zones/{zone}/rrsets`; paginated list of `_acme-challenge.` TXT records; supports `--page`, `--page-size`, `--all`.
+- `rc0 acme add-challenge <zone> --value TOKEN [--ttl 60]` — PATCH to add a DNS-01 challenge TXT record; supports `--dry-run`.
+- `rc0 acme remove-challenge <zone>` — PATCH with `changetype: delete` to remove all `_acme-challenge.` TXT records; y/N confirmation (`-y` to skip); supports `--dry-run`.
+- 403 responses on all `acme` commands carry an explicit hint about the ACME token permission (§18.3).
+- Topic help: `acme-workflow` (`rc0 help acme-workflow`) — DNS-01 overview, token setup, certbot hook examples.
+- Dry-run parity extended: `test_dry_run_parity.py` covers both ACME mutations.
+
 ## [0.5.0] — DNSSEC
 
 ### Added

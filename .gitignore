@@ -66,3 +66,4 @@ credentials.toml
 
 # PyInstaller
 *.spec
+HANDOFF.md

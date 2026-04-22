@@ -274,6 +274,21 @@ PARITY_CASES: list[tuple[str, str, list[str], int, Any]] = [
         200,
         {"status": "ok"},
     ),
+    # --- Phase 5 ---
+    (
+        "PATCH",
+        "https://my.rcodezero.at/api/v1/acme/zones/example.com/rrsets",
+        ["acme", "add-challenge", "example.com", "--value", "mytoken"],
+        200,
+        {"status": "ok"},
+    ),
+    (
+        "PATCH",
+        "https://my.rcodezero.at/api/v1/acme/zones/example.com/rrsets",
+        ["-y", "acme", "remove-challenge", "example.com"],
+        200,
+        {"status": "ok"},
+    ),
 ]
 
 

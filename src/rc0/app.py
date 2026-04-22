@@ -17,6 +17,7 @@ import typer
 import rc0
 from rc0.app_state import AppState
 from rc0.client.errors import ConfirmationDeclined, Rc0Error
+from rc0.commands import acme as acme_cmd
 from rc0.commands import auth as auth_cmd
 from rc0.commands import config as config_cmd
 from rc0.commands import dnssec as dnssec_cmd
@@ -40,6 +41,7 @@ app = typer.Typer(
     rich_markup_mode="rich",
 )
 
+app.add_typer(acme_cmd.app, name="acme", help="Manage ACME DNS-01 challenge records.")
 app.add_typer(auth_cmd.app, name="auth", help="Authenticate with the RcodeZero API.")
 app.add_typer(config_cmd.app, name="config", help="Read and write rc0 configuration.")
 app.add_typer(dnssec_cmd.app, name="dnssec", help="Manage DNSSEC for zones.")
