@@ -1,4 +1,4 @@
-"""Dry-run vs. live request parity for every Phase-2 mutation."""
+"""Dry-run vs. live request parity for every Phase-2 and Phase-3 mutation."""
 
 from __future__ import annotations
 
@@ -19,6 +19,30 @@ if TYPE_CHECKING:
 @pytest.fixture
 def cli() -> CliRunner:
     return CliRunner()
+
+
+@pytest.fixture
+def changes_yaml_path(tmp_path: Path) -> Path:
+    """Minimal PATCH-shape changes file; shared between dry-run and live."""
+    p = tmp_path / "changes.yaml"
+    p.write_text(
+        "- name: www.example.com.\n"
+        "  type: A\n"
+        "  ttl: 3600\n"
+        "  changetype: add\n"
+        "  records:\n"
+        "    - content: 10.0.0.1\n",
+    )
+    return p
+
+
+@pytest.fixture
+def replacement_yaml_path(tmp_path: Path) -> Path:
+    p = tmp_path / "replacement.yaml"
+    p.write_text(
+        "- name: www.example.com.\n  type: A\n  ttl: 3600\n  records:\n    - content: 10.0.0.1\n",
+    )
+    return p
 
 
 # (method, url, args, mock-status, mock-body)
@@ -163,6 +187,64 @@ PARITY_CASES: list[tuple[str, str, list[str], int, Any]] = [
         204,
         None,
     ),
+    # --- Phase 3 ---
+    (
+        "PATCH",
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+        [
+            "record",
+            "add",
+            "example.com",
+            "--name",
+            "www.example.com.",
+            "--type",
+            "A",
+            "--content",
+            "10.0.0.1",
+        ],
+        200,
+        {"status": "ok"},
+    ),
+    (
+        "PATCH",
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+        [
+            "record",
+            "update",
+            "example.com",
+            "--name",
+            "www.example.com.",
+            "--type",
+            "A",
+            "--content",
+            "10.0.0.2",
+        ],
+        200,
+        {"status": "ok"},
+    ),
+    (
+        "PATCH",
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+        [
+            "-y",
+            "record",
+            "delete",
+            "example.com",
+            "--name",
+            "www.example.com.",
+            "--type",
+            "A",
+        ],
+        200,
+        {"status": "ok"},
+    ),
+    (
+        "DELETE",
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+        ["-y", "record", "clear", "example.com"],
+        204,
+        None,
+    ),
 ]
 
 
@@ -208,3 +290,61 @@ def test_dry_run_parity(
     dry_body = dry_req.get("body")
     live_body = json.loads(live_request.content) if live_request.content else None
     assert dry_body == live_body
+
+
+@respx.mock
+def test_dry_run_parity_record_apply(
+    cli: CliRunner,
+    isolated_config: Path,
+    changes_yaml_path: Path,
+) -> None:
+    args = [
+        "-y",
+        "record",
+        "apply",
+        "example.com",
+        "--from-file",
+        str(changes_yaml_path),
+    ]
+    dry = cli.invoke(app, ["--token", "tk", "-o", "json", "--dry-run", *args])
+    assert dry.exit_code == 0, dry.stdout
+    dry_req = json.loads(dry.stdout)["request"]
+
+    respx.patch(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+    ).mock(return_value=httpx.Response(200, json={"status": "ok"}))
+    live = cli.invoke(app, ["--token", "tk", "-o", "json", *args])
+    assert live.exit_code == 0, live.stdout
+    live_req = respx.calls.last.request
+    assert dry_req["method"] == "PATCH"
+    assert dry_req["url"] == str(live_req.url)
+    assert dry_req["body"] == json.loads(live_req.content)
+
+
+@respx.mock
+def test_dry_run_parity_record_replace_all(
+    cli: CliRunner,
+    isolated_config: Path,
+    replacement_yaml_path: Path,
+) -> None:
+    args = [
+        "-y",
+        "record",
+        "replace-all",
+        "example.com",
+        "--from-file",
+        str(replacement_yaml_path),
+    ]
+    dry = cli.invoke(app, ["--token", "tk", "-o", "json", "--dry-run", *args])
+    assert dry.exit_code == 0, dry.stdout
+    dry_req = json.loads(dry.stdout)["request"]
+
+    respx.put(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+    ).mock(return_value=httpx.Response(200, json={"status": "ok"}))
+    live = cli.invoke(app, ["--token", "tk", "-o", "json", *args])
+    assert live.exit_code == 0, live.stdout
+    live_req = respx.calls.last.request
+    assert dry_req["method"] == "PUT"
+    assert dry_req["url"] == str(live_req.url)
+    assert dry_req["body"] == json.loads(live_req.content)
