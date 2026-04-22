@@ -439,6 +439,30 @@ def replace_all_cmd(
     _render_mutation(result, state)
 
 
+@app.command("clear")
+def clear_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
+    """Delete every non-apex RRset in a zone.
+
+    API: DELETE /api/v2/zones/{zone}/rrsets
+
+    SOA and NS rrsets at the apex survive; everything else is wiped. Prompts
+    for typed-zone confirmation by default.
+    """
+    state: AppState = ctx.obj
+    if not state.dry_run and not state.yes:
+        confirm_typed(
+            zone,
+            summary=f"Would clear every non-apex rrset from {zone}. This cannot be undone.",
+        )
+    with _client(state) as client:
+        result = rrsets_write_api.clear_rrsets(
+            client,
+            zone=zone,
+            dry_run=state.dry_run,
+        )
+    _render_mutation(result, state)
+
+
 def _load_rrsets_from_file(
     path: Path,
     *,

@@ -541,3 +541,74 @@ def test_record_replace_all_rejects_both_sources(
         ],
     )
     assert r.exit_code == 7
+
+
+# -------- record clear --------
+
+
+@respx.mock
+def test_record_clear_typed_confirmation_proceeds(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    route = respx.delete(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+    ).mock(return_value=httpx.Response(204))
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "-o",
+            "json",
+            "record",
+            "clear",
+            "example.com",
+        ],
+        input="example.com\n",
+    )
+    assert r.exit_code == 0, r.stdout
+    assert route.called
+
+
+@respx.mock
+def test_record_clear_wrong_confirmation_exits_12(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    route = respx.delete(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+    ).mock(return_value=httpx.Response(204))
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "record",
+            "clear",
+            "example.com",
+        ],
+        input="nope\n",
+    )
+    assert r.exit_code == 12
+    assert not route.called
+
+
+def test_record_clear_dry_run(cli: CliRunner, isolated_config: Path) -> None:
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "-o",
+            "json",
+            "--dry-run",
+            "record",
+            "clear",
+            "example.com",
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    parsed = json.loads(r.stdout)
+    assert parsed["dry_run"] is True
+    assert parsed["request"]["method"] == "DELETE"
