@@ -64,16 +64,16 @@ jobs:
         run: |
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
-          BASE="rc0-${VERSION}-${{ matrix.artifact_name }}"
-          SRC="dist/rc0${{ runner.os == 'Windows' && '.exe' || '' }}"
+          # artifact_name is e.g. "rc0-macos-arm64" — insert version: rc0-1.0.0-macos-arm64
+          VERSIONED="${{ matrix.artifact_name }}"
+          VERSIONED="${VERSIONED/rc0-/rc0-${VERSION}-}"
 
           if [ "${{ runner.os }}" = "Windows" ]; then
-            ASSET="${BASE}.exe"
-            mv "$SRC" "dist/${ASSET}"
+            ASSET="${VERSIONED}.exe"
+            mv "dist/rc0.exe" "dist/${ASSET}"
           else
-            # Wrap in tarball so Homebrew doesn't quarantine the extracted binary
-            ASSET="${BASE}.tar.gz"
-            mv "$SRC" dist/rc0
+            # Wrap in tarball — Homebrew won't quarantine files extracted from an archive
+            ASSET="${VERSIONED}.tar.gz"
             tar -czf "dist/${ASSET}" -C dist rc0
             rm dist/rc0
           fi
