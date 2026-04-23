@@ -11,6 +11,7 @@ from rc0.output import OutputFormat, render
 from rc0.output import csv_tsv as csv_tsv_mod
 from rc0.output import plain as plain_mod
 from rc0.output import table as table_mod
+from rc0.output._format import stringify
 
 DATA_LIST = [
     {"domain": "example.com", "type": "master", "dnssec": "yes"},
@@ -105,24 +106,24 @@ def test_table_list_with_columns_filter() -> None:
 
 
 def test_table_stringify_none() -> None:
-    assert table_mod._stringify(None) == ""
+    assert stringify(None) == ""
 
 
 def test_table_stringify_bool() -> None:
-    assert table_mod._stringify(True) == "true"
-    assert table_mod._stringify(False) == "false"
+    assert stringify(True) == "true"
+    assert stringify(False) == "false"
 
 
 def test_table_stringify_list() -> None:
-    assert table_mod._stringify([1, 2, 3]) == "1, 2, 3"
+    assert stringify([1, 2, 3]) == "1, 2, 3"
 
 
 def test_table_stringify_tuple() -> None:
-    assert table_mod._stringify(("a", "b")) == "a, b"
+    assert stringify(("a", "b")) == "a, b"
 
 
 def test_table_stringify_dict() -> None:
-    assert table_mod._stringify({"k": "v"}) == "k=v"
+    assert stringify({"k": "v"}) == "k=v"
 
 
 def test_table_with_title() -> None:
@@ -194,20 +195,20 @@ def test_csv_tsv_as_rows_non_dict_item_raises() -> None:
 
 
 def test_csv_tsv_stringify_none() -> None:
-    assert csv_tsv_mod._stringify(None) == ""
+    assert stringify(None, list_sep=",") == ""
 
 
 def test_csv_tsv_stringify_bool() -> None:
-    assert csv_tsv_mod._stringify(True) == "true"
-    assert csv_tsv_mod._stringify(False) == "false"
+    assert stringify(True, list_sep=",") == "true"
+    assert stringify(False, list_sep=",") == "false"
 
 
 def test_csv_tsv_stringify_list() -> None:
-    assert csv_tsv_mod._stringify([1, 2]) == "1,2"
+    assert stringify([1, 2], list_sep=",") == "1,2"
 
 
 def test_csv_tsv_stringify_tuple() -> None:
-    assert csv_tsv_mod._stringify((1, 2)) == "1,2"
+    assert stringify((1, 2), list_sep=",") == "1,2"
 
 
 def test_tsv_sanitizes_tabs_and_newlines() -> None:

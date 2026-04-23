@@ -6,13 +6,10 @@ from typing import Annotated
 
 import typer
 
-from rc0 import auth as auth_core
 from rc0.api import messages as messages_api
 from rc0.api import messages_write as messages_write_api
 from rc0.app_state import AppState  # noqa: TC001
-from rc0.client.dry_run import DryRunResult
-from rc0.client.errors import AuthError, ValidationError
-from rc0.client.http import Client
+from rc0.commands._helpers import _client, _render_mutation, _validate_pagination
 from rc0.confirm import confirm_yes_no
 from rc0.output import render
 
@@ -31,24 +28,6 @@ PageSizeOpt = Annotated[
     int | None,
     typer.Option("--page-size", min=1, max=1000, help="Rows per page (default 50)."),
 ]
-
-
-def _client(state: AppState) -> Client:
-    token = state.token
-    if token is None:
-        record = auth_core.load_token(state.profile_name)
-        if record is not None:
-            token = auth_core.token_of(record)
-    if not token:
-        raise AuthError(
-            "No API token available.",
-            hint=f"Run `rc0 auth login` or set RC0_API_TOKEN (profile {state.profile_name!r}).",
-        )
-    return Client(
-        api_url=state.effective_api_url,
-        token=token,
-        timeout=state.effective_timeout,
-    )
 
 
 @app.command("poll")
@@ -76,11 +55,7 @@ def list_cmd(
       rc0 messages list -o json --all
     """
     state: AppState = ctx.obj
-    if fetch_all and page is not None:
-        raise ValidationError(
-            "--page cannot be combined with --all.",
-            hint="Use --all to iterate every page, or --page/--page-size to select one page.",
-        )
+    _validate_pagination(fetch_all, page)
     with _client(state) as client:
         msgs = messages_api.list_messages(
             client,
@@ -98,11 +73,6 @@ def list_cmd(
 
 
 MessageIdArg = Annotated[int, typer.Argument(help="Message ID to acknowledge.")]
-
-
-def _render_mutation(result: DryRunResult | dict[str, object], state: AppState) -> None:
-    payload = result.to_dict() if isinstance(result, DryRunResult) else result
-    typer.echo(render(payload, fmt=state.effective_output))
 
 
 @app.command("ack")

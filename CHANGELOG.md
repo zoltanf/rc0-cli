@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Extracted `_client`, `_render_mutation`, and `_validate_pagination` into a
+  shared `src/rc0/commands/_helpers.py` — eliminates copy-paste across all 9
+  command modules.
+- Extracted shared `stringify()` formatter into `src/rc0/output/_format.py`;
+  `csv_tsv` and `table` modules now import it instead of maintaining local copies.
+- Moved `import json` and `from pydantic import ValidationError` to module
+  level in `record.py` (were lazily imported inside a function with `_`-aliases).
+- Replaced TOCTOU `path.exists()` pre-check in `rrsets/parse.py` with a
+  dedicated `FileNotFoundError` branch inside the existing `try/except`.
+
 ## [1.0.2] — Startup performance
 
 ### Fixed

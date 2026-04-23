@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 import typer
+from pydantic import ValidationError as PydanticValidationError
 
-from rc0 import auth as auth_core
 from rc0.api import rrsets as rrsets_api
 from rc0.api import rrsets_write as rrsets_write_api
 from rc0.app_state import AppState  # noqa: TC001
-from rc0.client.dry_run import DryRunResult
-from rc0.client.errors import AuthError, ValidationError
-from rc0.client.http import Client
+from rc0.client.errors import ValidationError
+from rc0.commands._helpers import _client, _render_mutation, _validate_pagination
 from rc0.confirm import confirm_typed, confirm_yes_no
 from rc0.output import OutputFormat, render
 from rc0.output.bind import render_rrsets
@@ -28,24 +28,6 @@ if TYPE_CHECKING:
 app = typer.Typer(name="record", help="Manage RRsets.", no_args_is_help=True)
 
 ZoneArg = Annotated[str, typer.Argument(help="Zone apex, e.g. example.com.")]
-
-
-def _client(state: AppState) -> Client:
-    token = state.token
-    if token is None:
-        record = auth_core.load_token(state.profile_name)
-        if record is not None:
-            token = auth_core.token_of(record)
-    if not token:
-        raise AuthError(
-            "No API token available.",
-            hint=f"Run `rc0 auth login` or set RC0_API_TOKEN (profile {state.profile_name!r}).",
-        )
-    return Client(
-        api_url=state.effective_api_url,
-        token=token,
-        timeout=state.effective_timeout,
-    )
 
 
 @app.command("list")
@@ -82,11 +64,7 @@ def list_cmd(
       rc0 record list example.com -o json --all
     """
     state: AppState = ctx.obj
-    if fetch_all and page is not None:
-        raise ValidationError(
-            "--page cannot be combined with --all.",
-            hint="Use --all to iterate every page, or --page/--page-size to select one page.",
-        )
+    _validate_pagination(fetch_all, page)
     with _client(state) as client:
         rows = rrsets_api.list_rrsets(
             client,
@@ -188,14 +166,6 @@ ZoneFileOpt = Annotated[
         help="Path to a BIND zone file (only for `record replace-all`).",
     ),
 ]
-
-
-def _render_mutation(
-    result: DryRunResult | dict[str, object],
-    state: AppState,
-) -> None:
-    payload = result.to_dict() if isinstance(result, DryRunResult) else result
-    typer.echo(render(payload, fmt=state.effective_output))
 
 
 def _warn(state: AppState) -> Callable[[str], None]:
@@ -478,10 +448,7 @@ def _load_rrsets_from_file(
     warn: Callable[[str], None],
 ) -> list[RRsetInput]:
     """Load a JSON/YAML file as RRsetInput[] (PUT body, no `changetype`)."""
-    import json as _json
-
     import yaml as _yaml
-    from pydantic import ValidationError as _PydanticValidationError
 
     from rc0.models.rrset_write import RRsetInput
 
@@ -492,7 +459,7 @@ def _load_rrsets_from_file(
             hint="Use .json, .yaml, or .yml.",
         )
     text = path.read_text(encoding="utf-8")
-    raw = _json.loads(text) if suffix == ".json" else _yaml.safe_load(text)
+    raw = json.loads(text) if suffix == ".json" else _yaml.safe_load(text)
     if not isinstance(raw, list):
         raise ValidationError(
             f"{path} must be a list of rrset objects.",
@@ -512,7 +479,7 @@ def _load_rrsets_from_file(
             warn(f"auto-qualified name {raw_name!r} → {qualified!r}")
         try:
             out.append(RRsetInput.model_validate({**row, "name": qualified}))
-        except _PydanticValidationError as exc:
+        except PydanticValidationError as exc:
             raise ValidationError(
                 f"Item {i} in {path} failed validation: "
                 + "; ".join(

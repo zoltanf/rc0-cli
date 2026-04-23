@@ -7,18 +7,18 @@ from typing import TYPE_CHECKING, Annotated
 
 import typer
 
-from rc0 import auth as auth_core
 from rc0.api import acme as acme_api
 from rc0.api import acme_write
 from rc0.app_state import AppState  # noqa: TC001
-from rc0.client.dry_run import DryRunResult
-from rc0.client.errors import AuthError, AuthzError
-from rc0.client.http import Client
+from rc0.client.errors import AuthzError
+from rc0.commands._helpers import _client, _render_mutation
 from rc0.confirm import confirm_yes_no
 from rc0.output import render
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+
+    from rc0.client.http import Client
 
 app = typer.Typer(name="acme", help="Manage ACME DNS-01 challenge records.", no_args_is_help=True)
 
@@ -28,24 +28,6 @@ _ACME_403_HINT = (
 )
 
 ZoneArg = Annotated[str, typer.Argument(help="Fully-qualified zone apex, e.g. example.com.")]
-
-
-def _client(state: AppState) -> Client:
-    token = state.token
-    if token is None:
-        record = auth_core.load_token(state.profile_name)
-        if record is not None:
-            token = auth_core.token_of(record)
-    if not token:
-        raise AuthError(
-            "No API token available.",
-            hint=f"Run `rc0 auth login` or set RC0_API_TOKEN (profile {state.profile_name!r}).",
-        )
-    return Client(
-        api_url=state.effective_api_url,
-        token=token,
-        timeout=state.effective_timeout,
-    )
 
 
 @contextmanager
@@ -60,11 +42,6 @@ def _acme_client(state: AppState) -> Generator[Client]:
                 http_status=exc.http_status,
                 request=exc.request,
             ) from exc
-
-
-def _render_mutation(result: DryRunResult | dict[str, object], state: AppState) -> None:
-    payload = result.to_dict() if isinstance(result, DryRunResult) else result
-    typer.echo(render(payload, fmt=state.effective_output))
 
 
 # ------------------------------------------------------------------- commands

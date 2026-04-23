@@ -12,11 +12,9 @@ from typing import Annotated
 
 import typer
 
-from rc0 import auth as auth_core
 from rc0.api import reports as reports_api
 from rc0.app_state import AppState  # noqa: TC001
-from rc0.client.errors import AuthError, ValidationError
-from rc0.client.http import Client
+from rc0.commands._helpers import _client, _validate_pagination
 from rc0.output import render
 
 app = typer.Typer(name="report", help="Account-level reports.", no_args_is_help=True)
@@ -32,24 +30,6 @@ PageSizeOpt = Annotated[
 ]
 
 
-def _client(state: AppState) -> Client:
-    token = state.token
-    if token is None:
-        record = auth_core.load_token(state.profile_name)
-        if record is not None:
-            token = auth_core.token_of(record)
-    if not token:
-        raise AuthError(
-            "No API token available.",
-            hint=f"Run `rc0 auth login` or set RC0_API_TOKEN (profile {state.profile_name!r}).",
-        )
-    return Client(
-        api_url=state.effective_api_url,
-        token=token,
-        timeout=state.effective_timeout,
-    )
-
-
 @app.command("problematic-zones")
 def problematic_zones_cmd(
     ctx: typer.Context,
@@ -59,11 +39,7 @@ def problematic_zones_cmd(
 ) -> None:
     """Zones currently flagged with problems. API: GET /api/v2/reports/problematiczones"""
     state: AppState = ctx.obj
-    if fetch_all and page is not None:
-        raise ValidationError(
-            "--page cannot be combined with --all.",
-            hint="Use --all to iterate every page, or --page/--page-size to select one page.",
-        )
+    _validate_pagination(fetch_all, page)
     with _client(state) as client:
         rows = reports_api.list_problematic_zones(
             client,

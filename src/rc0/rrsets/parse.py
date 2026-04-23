@@ -185,14 +185,14 @@ def from_zonefile(path: Path, *, zone: str) -> list[RRsetInput]:
     file that already declares a different origin gets rewritten to the
     command's target.
     """
-    if not path.exists():
-        raise ValidationError(
-            f"Zone file {path} does not exist.",
-            hint="Double-check the --zone-file path.",
-        )
     origin = dns.name.from_text(zone.rstrip(".") + ".")
     try:
         z = dns.zone.from_file(str(path), origin=origin, relativize=False)
+    except FileNotFoundError as exc:
+        raise ValidationError(
+            f"Zone file {path} does not exist.",
+            hint="Double-check the --zone-file path.",
+        ) from exc
     except (dns.exception.DNSException, OSError) as exc:
         raise ValidationError(
             f"Failed to parse zone file {path}: {exc}.",

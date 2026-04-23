@@ -11,12 +11,10 @@ from typing import Annotated
 
 import typer
 
-from rc0 import auth as auth_core
 from rc0.api import stats as stats_api
 from rc0.app_state import AppState  # noqa: TC001
-from rc0.client.errors import AuthError
-from rc0.client.http import Client
 from rc0.commands._deprecated import deprecated_warn
+from rc0.commands._helpers import _client
 from rc0.output import render
 
 app = typer.Typer(name="stats", help="Account statistics.", no_args_is_help=True)
@@ -25,24 +23,6 @@ app.add_typer(zone_app, name="zone")
 
 
 ZoneArg = Annotated[str, typer.Argument(help="Fully-qualified zone apex, e.g. example.com.")]
-
-
-def _client(state: AppState) -> Client:
-    token = state.token
-    if token is None:
-        record = auth_core.load_token(state.profile_name)
-        if record is not None:
-            token = auth_core.token_of(record)
-    if not token:
-        raise AuthError(
-            "No API token available.",
-            hint=f"Run `rc0 auth login` or set RC0_API_TOKEN (profile {state.profile_name!r}).",
-        )
-    return Client(
-        api_url=state.effective_api_url,
-        token=token,
-        timeout=state.effective_timeout,
-    )
 
 
 # ----------------------------------------------------------- top-level (live)

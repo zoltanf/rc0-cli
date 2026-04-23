@@ -9,6 +9,8 @@ import csv
 import io
 from typing import TYPE_CHECKING, Any
 
+from rc0.output._format import stringify
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -28,7 +30,7 @@ def render(data: Any, *, columns: Sequence[str] | None = None, delimiter: str = 
         writer = csv.writer(buf, delimiter=delimiter, quoting=csv.QUOTE_MINIMAL)
         writer.writerow(field_names)
         for row in rows:
-            writer.writerow([_stringify(row.get(c)) for c in field_names])
+            writer.writerow([stringify(row.get(c), list_sep=",") for c in field_names])
     return buf.getvalue().rstrip("\n")
 
 
@@ -50,15 +52,5 @@ def _as_rows(data: Any, *, columns: Sequence[str] | None) -> list[dict[str, Any]
     return rows
 
 
-def _stringify(value: Any) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, list | tuple):
-        return ",".join(_stringify(v) for v in value)
-    return str(value)
-
-
 def _sanitize_tsv(value: Any) -> str:
-    return _stringify(value).replace("\t", " ").replace("\n", " ")
+    return stringify(value, list_sep=",").replace("\t", " ").replace("\n", " ")

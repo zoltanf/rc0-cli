@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any
 from rich.console import Console
 from rich.table import Table
 
+from rc0.output._format import stringify
+
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
@@ -39,7 +41,7 @@ def _kv_table(data: dict[str, Any], *, title: str | None) -> Table:
     table.add_column("key")
     table.add_column("value")
     for k, v in data.items():
-        table.add_row(str(k), _stringify(v))
+        table.add_row(str(k), stringify(v))
     return table
 
 
@@ -56,21 +58,9 @@ def _list_table(
         for k in keys:
             table.add_column(k)
         for item in dict_items:
-            table.add_row(*[_stringify(item.get(k)) for k in keys])
+            table.add_row(*[stringify(item.get(k)) for k in keys])
     else:
         table.add_column("value")
         for x in items:
-            table.add_row(_stringify(x))
+            table.add_row(stringify(x))
     return table
-
-
-def _stringify(value: Any) -> str:
-    if value is None:
-        return ""
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, list | tuple):
-        return ", ".join(_stringify(v) for v in value)
-    if isinstance(value, dict):
-        return ", ".join(f"{k}={_stringify(v)}" for k, v in value.items())
-    return str(value)
