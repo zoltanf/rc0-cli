@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, timedelta
+from datetime import date
 from typing import TYPE_CHECKING
 from unittest.mock import patch
 
@@ -75,9 +75,8 @@ def test_problematic_zones_all_auto_pages(cli: CliRunner, isolated_config: Path)
 
 
 @respx.mock
-def test_nxdomains_resolves_today_to_iso_date(cli: CliRunner, isolated_config: Path) -> None:
-    """'today' keyword must be translated to YYYY-MM-DD before the API call."""
-    expected_day = date.today().isoformat()
+def test_nxdomains_sends_today_literally(cli: CliRunner, isolated_config: Path) -> None:
+    """'today' must be passed through literally — the API rejects ISO dates here."""
     route = respx.get("https://my.rcodezero.at/api/v2/reports/nxdomains").mock(
         return_value=httpx.Response(200, json=[]),
     )
@@ -85,13 +84,13 @@ def test_nxdomains_resolves_today_to_iso_date(cli: CliRunner, isolated_config: P
     assert r.exit_code == 0, r.stdout
     assert route.called
     sent_params = dict(route.calls[0].request.url.params)
-    assert sent_params["day"] == expected_day
+    assert sent_params["day"] == "today"
+    assert sent_params["type"] == "json"
 
 
 @respx.mock
-def test_nxdomains_resolves_yesterday_to_iso_date(cli: CliRunner, isolated_config: Path) -> None:
-    """'yesterday' keyword must be translated to YYYY-MM-DD before the API call."""
-    expected_day = (date.today() - timedelta(days=1)).isoformat()
+def test_nxdomains_sends_yesterday_literally(cli: CliRunner, isolated_config: Path) -> None:
+    """'yesterday' must be passed through literally — the API rejects ISO dates here."""
     route = respx.get("https://my.rcodezero.at/api/v2/reports/nxdomains").mock(
         return_value=httpx.Response(200, json=[]),
     )
@@ -99,35 +98,18 @@ def test_nxdomains_resolves_yesterday_to_iso_date(cli: CliRunner, isolated_confi
     assert r.exit_code == 0, r.stdout
     assert route.called
     sent_params = dict(route.calls[0].request.url.params)
-    assert sent_params["day"] == expected_day
+    assert sent_params["day"] == "yesterday"
 
 
-@respx.mock
-def test_nxdomains_passes_explicit_date_unchanged(cli: CliRunner, isolated_config: Path) -> None:
-    route = respx.get(
-        "https://my.rcodezero.at/api/v2/reports/nxdomains",
-        params={"day": "2026-04-21"},
-    ).mock(
-        return_value=httpx.Response(
-            200,
-            json=[
-                {
-                    "date": "2026-04-21",
-                    "domain": "d.example.",
-                    "qname": "x.d.example.",
-                    "qtype": "A",
-                    "querycount": 5,
-                },
-            ],
-        ),
-    )
+def test_nxdomains_rejects_explicit_iso_date(cli: CliRunner, isolated_config: Path) -> None:
+    """YYYY-MM-DD is not supported by the nxdomains endpoint — reject client-side."""
     r = cli.invoke(
         app,
-        ["--token", "tk", "-o", "json", "report", "nxdomains", "--day", "2026-04-21"],
+        ["--token", "tk", "report", "nxdomains", "--day", "2026-04-21"],
     )
-    assert r.exit_code == 0, r.stdout
-    assert route.called
-    assert json.loads(r.stdout)[0]["querycount"] == 5
+    assert r.exit_code == 2
+    out = r.stdout + (r.output or "")
+    assert "today" in out and "yesterday" in out
 
 
 @respx.mock
@@ -148,7 +130,7 @@ def test_nxdomains_empty_body_returns_empty_list(cli: CliRunner, isolated_config
 def test_accounting_passes_month_param(cli: CliRunner, isolated_config: Path) -> None:
     route = respx.get(
         "https://my.rcodezero.at/api/v2/reports/accounting",
-        params={"month": "2026-04"},
+        params={"month": "2026-04", "type": "json"},
     ).mock(
         return_value=httpx.Response(
             200,
@@ -194,7 +176,7 @@ def test_queryrates_passes_month_and_include_nx(
 ) -> None:
     route = respx.get(
         "https://my.rcodezero.at/api/v2/reports/queryrates",
-        params={"month": "2026-04", "include_nx": "1"},
+        params={"month": "2026-04", "include_nx": "1", "type": "json"},
     ).mock(
         return_value=httpx.Response(
             200,
@@ -268,9 +250,57 @@ def test_domainlist(cli: CliRunner, isolated_config: Path) -> None:
 
 def test_help_list_graceful_when_module_missing(cli: CliRunner, isolated_config: Path) -> None:
     """help list must exit cleanly with a user-friendly error when topics are missing."""
-    with patch(
-        "rc0.commands.help.resources.files",
-        side_effect=ModuleNotFoundError("rc0.topics"),
-    ):
+    with patch("rc0.commands.help.available_topics", return_value=[]):
         r = cli.invoke(app, ["--token", "tk", "help", "list"])
     assert r.exit_code == 6  # NotFoundError exit code
+
+
+# ----------------------------------------------------------------- regressions
+
+
+# Bug 2 regression: whitespace-only body must not crash accounting
+@respx.mock
+def test_accounting_whitespace_body_returns_empty_list(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    """Whitespace-only API body (e.g. b'\\n') must not crash — returns []."""
+    respx.get("https://my.rcodezero.at/api/v2/reports/accounting").mock(
+        return_value=httpx.Response(200, content=b"\n"),
+    )
+    r = cli.invoke(app, ["--token", "tk", "-o", "json", "report", "accounting"])
+    assert r.exit_code == 0, r.stdout
+    assert json.loads(r.stdout) == []
+
+
+# Bug 5 regression: whitespace-only body must not crash queryrates
+@respx.mock
+def test_queryrates_whitespace_body_returns_empty_list(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    """Whitespace-only API body (e.g. b'\\n') must not crash — returns []."""
+    respx.get("https://my.rcodezero.at/api/v2/reports/queryrates").mock(
+        return_value=httpx.Response(200, content=b"\n"),
+    )
+    r = cli.invoke(
+        app,
+        ["--token", "tk", "-o", "json", "report", "queryrates", "--month", "2026-04"],
+    )
+    assert r.exit_code == 0, r.stdout
+    assert json.loads(r.stdout) == []
+
+
+# Bug 3 regression: invalid date format must be rejected client-side (exit 2)
+def test_nxdomains_rejects_invalid_date_format(cli: CliRunner, isolated_config: Path) -> None:
+    """Non-ISO --day value must exit 2 with a clear message before hitting the API."""
+    r = cli.invoke(app, ["--token", "tk", "report", "nxdomains", "--day", "not-a-date"])
+    assert r.exit_code == 2
+    assert "not-a-date" in r.stdout or "not-a-date" in (r.output or "")
+
+
+def test_queryrates_rejects_invalid_date_format(cli: CliRunner, isolated_config: Path) -> None:
+    """Non-ISO --day value must exit 2 with a clear message before hitting the API."""
+    r = cli.invoke(app, ["--token", "tk", "report", "queryrates", "--day", "not-a-date"])
+    assert r.exit_code == 2
+    assert "not-a-date" in r.stdout or "not-a-date" in (r.output or "")

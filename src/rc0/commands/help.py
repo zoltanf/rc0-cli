@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from importlib import resources
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -16,25 +16,18 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
-TOPICS_PACKAGE = "rc0.topics"
+# Topics directory sits alongside the commands package, two levels up from this file.
+_TOPICS_DIR = Path(__file__).parent.parent / "topics"
 
 
 def available_topics() -> list[str]:
     """Return the list of ``.md`` topics shipped in the package."""
-    try:
-        topics: list[str] = []
-        for entry in resources.files(TOPICS_PACKAGE).iterdir():
-            name = entry.name
-            if name.endswith(".md"):
-                topics.append(name.removesuffix(".md"))
-        return sorted(topics)
-    except ModuleNotFoundError:
+    if not _TOPICS_DIR.is_dir():
         return []
+    return sorted(p.stem for p in _TOPICS_DIR.glob("*.md"))
 
 
-@app.command("list")
-def list_topics(ctx: typer.Context) -> None:
-    """Print the topics installed with this rc0 build."""
+def _print_topic_list() -> None:
     topics = available_topics()
     if not topics:
         raise NotFoundError(
@@ -50,27 +43,29 @@ def show(
     ctx: typer.Context,
     topic: Annotated[
         str | None,
-        typer.Argument(help="Topic name, e.g. 'authentication'. Omit to list topics."),
+        typer.Argument(
+            help="Topic name, e.g. 'authentication', or 'list' to enumerate topics.",
+        ),
     ] = None,
 ) -> None:
-    """Print the Markdown content of one topic, or list topics if no name given."""
+    """Print the Markdown content of one topic, or list topics if no name given.
+
+    Examples:
+
+      rc0 help list
+      rc0 help authentication
+      rc0 help output-formats
+    """
     state: AppState = ctx.obj  # noqa: F841 — reserved; keeps signature symmetric
     if ctx.invoked_subcommand is not None:
         return
-    if topic is None:
-        for t in available_topics():
-            typer.echo(t)
+    if topic is None or topic == "list":
+        _print_topic_list()
         return
-    try:
-        data = resources.files(TOPICS_PACKAGE).joinpath(f"{topic}.md").read_text(encoding="utf-8")
-    except ModuleNotFoundError as exc:
-        raise NotFoundError(
-            "Help topics are not available in this build.",
-            hint="Install rc0 from PyPI for full help: pip install rc0-cli",
-        ) from exc
-    except (FileNotFoundError, OSError) as exc:
+    topic_path = _TOPICS_DIR / f"{topic}.md"
+    if not topic_path.is_file():
         raise NotFoundError(
             f"No help topic named {topic!r}.",
             hint=f"Run `rc0 help list` to see available topics: {', '.join(available_topics())}.",
-        ) from exc
-    typer.echo(data)
+        )
+    typer.echo(topic_path.read_text(encoding="utf-8"))

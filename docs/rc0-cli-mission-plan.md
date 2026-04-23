@@ -935,7 +935,7 @@ $ rc0 record add example.com --name www --type A --ttl 3600 --content 10.0.0.1
 ### Agent-driven zone audit
 
 ```bash
-$ rc0 zone list -o json --all | jq '.[] | select(.dnssec == "no") | .domain'
+$ rc0 -o json zone list --all | jq '.[] | select(.dnssec == "no") | .domain'
 "legacy1.example.com"
 "legacy2.example.com"
 ```

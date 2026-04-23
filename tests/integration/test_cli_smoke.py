@@ -94,3 +94,25 @@ def test_help_topic_profiles_and_config(cli: CliRunner, isolated_config: Path) -
     assert r.exit_code == 0
     assert "Profiles" in r.stdout
     assert "RC0_PROFILE" in r.stdout
+
+
+# regression: Bug 1 — help list must succeed and enumerate real topic names
+def test_help_list_returns_topics(cli: CliRunner, isolated_config: Path) -> None:
+    r = cli.invoke(app, ["help", "list"])
+    assert r.exit_code == 0, r.stdout
+    lines = [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
+    assert "authentication" in lines
+    assert "pagination" in lines
+    assert "output-formats" in lines
+
+
+# regression: Bug 4 — zone list --help must show -o before the subcommand
+def test_zone_list_help_uses_correct_output_flag_position(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    r = cli.invoke(app, ["zone", "list", "--help"])
+    assert r.exit_code == 0, r.stdout
+    assert "zone list -o json" not in r.stdout, (
+        "example places -o after subcommand; it must come before: rc0 -o json zone list"
+    )

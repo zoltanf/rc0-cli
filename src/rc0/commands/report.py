@@ -8,6 +8,7 @@ return bare arrays with server-side filters (``--day``, ``--month``,
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 
 import typer
@@ -29,7 +30,31 @@ PageSizeOpt = Annotated[
     typer.Option("--page-size", min=1, max=1000, help="Rows per page (default 50)."),
 ]
 
-_DAY_HELP = "Filter by day: 'today', 'yesterday', or YYYY-MM-DD."
+_DAY_HELP = "Filter by day: 'today', 'yesterday', or YYYY-MM-DD (e.g. 2026-04-22)."
+_NXDOMAIN_DAY_HELP = (
+    "Filter by day: 'today' or 'yesterday' (the API does not accept explicit dates)."
+)
+
+
+def _validate_day(day: str | None) -> None:
+    if day is None or day in ("today", "yesterday"):
+        return
+    try:
+        date.fromisoformat(day)
+    except ValueError as err:
+        raise typer.BadParameter(
+            f"{day!r} is not a recognised day value. Use 'today', 'yesterday', or YYYY-MM-DD.",
+            param_hint="'--day'",
+        ) from err
+
+
+def _validate_nxdomain_day(day: str | None) -> None:
+    if day is None or day in ("today", "yesterday"):
+        return
+    raise typer.BadParameter(
+        f"{day!r} is not supported. The nxdomains endpoint only accepts 'today' or 'yesterday'.",
+        param_hint="'--day'",
+    )
 
 
 @app.command("problematic-zones")
@@ -62,10 +87,11 @@ def nxdomains_cmd(
     ctx: typer.Context,
     day: Annotated[
         str | None,
-        typer.Option("--day", help=_DAY_HELP),
+        typer.Option("--day", help=_NXDOMAIN_DAY_HELP),
     ] = None,
 ) -> None:
     """NXDOMAIN report. API: GET /api/v2/reports/nxdomains"""
+    _validate_nxdomain_day(day)
     state: AppState = ctx.obj
     with _client(state) as client:
         rows = reports_api.list_nxdomains(client, day=day)
@@ -123,6 +149,7 @@ def queryrates_cmd(
     ] = False,
 ) -> None:
     """Per-zone query rates. API: GET /api/v2/reports/queryrates"""
+    _validate_day(day)
     if month is None and day is None:
         raise typer.BadParameter(
             "Provide either --day (e.g. 'today', 'YYYY-MM-DD') or --month (e.g. '2026-04').",

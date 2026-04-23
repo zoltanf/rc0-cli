@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.5] — 2026-04-23
+
+### Fixed
+- `rc0 report accounting`, `rc0 report queryrates`, and `rc0 report nxdomains`
+  returned `[]` for every query even when the account had data. Root cause:
+  the API's `type` query parameter defaults to `csv`, so the server was
+  returning CSV bodies; `response.json()` then raised `JSONDecodeError` and a
+  silent `except` in the client wrapper converted the error into an empty
+  list. The wrappers now always send `type=json`, and the swallow is removed
+  so real parse errors surface instead of masquerading as empty data.
+- `rc0 report nxdomains --day today|yesterday` now passes the keyword through
+  to the API literally. The nxdomains endpoint accepts only `'today'` or
+  `'yesterday'` (not `YYYY-MM-DD`) — the previous client-side resolution to
+  an ISO date was rejected by the server with "The selected day is invalid."
+- `rc0 report nxdomains --day YYYY-MM-DD` is now rejected client-side (exit
+  2) with a clear message, since the endpoint does not support explicit
+  dates. `rc0 report queryrates --day YYYY-MM-DD` continues to work as
+  before (that endpoint does accept ISO dates).
+
+### Added
+- `scripts/smoke-live.sh` is now an end-to-end live-API integration tour: it
+  walks every read-only command (across every output format), performs a
+  full create/add/read/update/apply/replace-all/DNSSEC/clear/delete
+  round-trip on a throwaway test zone (default `rc0-cli-test.com`), refuses
+  to run if that zone already exists, and always cleans up via an EXIT
+  trap. Gated by `SKIP_MUTATIONS=1` and `SKIP_DNSSEC=1` env vars.
+
 ## [1.0.4] — 2026-04-23
 
 ### Fixed
