@@ -109,3 +109,53 @@ jobs:
           files: dist/*
           generate_release_notes: true
           fail_on_unmatched_files: true
+
+  # ── 4. Update Homebrew tap ─────────────────────────────────────────────────
+  update-homebrew:
+    name: Update Homebrew tap
+    needs: [github-release]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download SHA256SUMS from release
+        run: |
+          gh release download "${{ github.ref_name }}" \
+            --repo zoltanf/rc0-cli \
+            --pattern SHA256SUMS \
+            --dir /tmp/release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fill formula template
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+
+          SHA256_MACOS_ARM64=$(grep  "macos-arm64"   /tmp/release/SHA256SUMS | awk '{print $1}')
+          SHA256_MACOS_X86_64=$(grep "macos-x86_64"  /tmp/release/SHA256SUMS | awk '{print $1}')
+          SHA256_LINUX_ARM64=$(grep  "linux-arm64"   /tmp/release/SHA256SUMS | awk '{print $1}')
+          SHA256_LINUX_X86_64=$(grep "linux-x86_64"  /tmp/release/SHA256SUMS | awk '{print $1}')
+
+          sed \
+            -e "s/PLACEHOLDER_VERSION/${VERSION}/g" \
+            -e "s/PLACEHOLDER_SHA256_MACOS_ARM64/${SHA256_MACOS_ARM64}/g" \
+            -e "s/PLACEHOLDER_SHA256_MACOS_X86_64/${SHA256_MACOS_X86_64}/g" \
+            -e "s/PLACEHOLDER_SHA256_LINUX_ARM64/${SHA256_LINUX_ARM64}/g" \
+            -e "s/PLACEHOLDER_SHA256_LINUX_X86_64/${SHA256_LINUX_X86_64}/g" \
+            packaging/homebrew/rc0.rb > /tmp/rc0.rb
+
+      - name: Push formula to homebrew-rc0
+        run: |
+          git clone \
+            https://x-access-token:${{ secrets.HOMEBREW_TAP_TOKEN }}@github.com/zoltanf/homebrew-rc0.git \
+            /tmp/homebrew-rc0
+          mkdir -p /tmp/homebrew-rc0/Formula
+          cp /tmp/rc0.rb /tmp/homebrew-rc0/Formula/rc0.rb
+          cd /tmp/homebrew-rc0
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/rc0.rb
+          git diff --cached --quiet && echo "Formula unchanged" && exit 0
+          git commit -m "rc0 ${{ github.ref_name }}"
+          git push
