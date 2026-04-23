@@ -58,35 +58,41 @@ jobs:
       - name: Strip symbols (Linux / macOS)
         if: runner.os != 'Windows'
         run: strip dist/rc0
-      - name: Rename binary with version
-        id: rename
+      - name: Package and checksum
+        id: pkg
         shell: bash
         run: |
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
+          BASE="rc0-${VERSION}-${{ matrix.artifact_name }}"
           SRC="dist/rc0${{ runner.os == 'Windows' && '.exe' || '' }}"
-          DEST="dist/${{ matrix.artifact_name }}"
-          # Insert version prefix: rc0-macos-arm64 → rc0-0.9.0-macos-arm64
-          DEST="${DEST/rc0-/rc0-${VERSION}-}"
-          mv "$SRC" "$DEST"
-          echo "binary_path=$DEST" >> "$GITHUB_OUTPUT"
-          echo "binary_name=$(basename $DEST)" >> "$GITHUB_OUTPUT"
-      - name: Generate sha256 checksum
-        shell: bash
-        run: |
+
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            ASSET="${BASE}.exe"
+            mv "$SRC" "dist/${ASSET}"
+          else
+            # Wrap in tarball so Homebrew doesn't quarantine the extracted binary
+            ASSET="${BASE}.tar.gz"
+            mv "$SRC" dist/rc0
+            tar -czf "dist/${ASSET}" -C dist rc0
+            rm dist/rc0
+          fi
+
           cd dist
           if command -v sha256sum >/dev/null 2>&1; then
-            sha256sum "${{ steps.rename.outputs.binary_name }}" > "${{ steps.rename.outputs.binary_name }}.sha256"
+            sha256sum "${ASSET}" > "${ASSET}.sha256"
           else
-            shasum -a 256 "${{ steps.rename.outputs.binary_name }}" > "${{ steps.rename.outputs.binary_name }}.sha256"
+            shasum -a 256 "${ASSET}" > "${ASSET}.sha256"
           fi
+
+          echo "asset=${ASSET}" >> "$GITHUB_OUTPUT"
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.rename.outputs.binary_name }}
+          name: ${{ steps.pkg.outputs.asset }}
           path: |
-            ${{ steps.rename.outputs.binary_path }}
-            dist/${{ steps.rename.outputs.binary_name }}.sha256
+            dist/${{ steps.pkg.outputs.asset }}
+            dist/${{ steps.pkg.outputs.asset }}.sha256
 
   # ── 3. GitHub Release (binaries + SHA256SUMS) ─────────────────────────────
   github-release:
@@ -134,9 +140,9 @@ jobs:
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
 
-          SHA256_MACOS_ARM64=$(grep "macos-arm64"  /tmp/release/SHA256SUMS | awk '{print $1}')
-          SHA256_LINUX_ARM64=$(grep "linux-arm64"  /tmp/release/SHA256SUMS | awk '{print $1}')
-          SHA256_LINUX_X86_64=$(grep "linux-x86_64" /tmp/release/SHA256SUMS | awk '{print $1}')
+          SHA256_MACOS_ARM64=$(grep "macos-arm64.tar.gz"  /tmp/release/SHA256SUMS | awk '{print $1}')
+          SHA256_LINUX_ARM64=$(grep "linux-arm64.tar.gz"  /tmp/release/SHA256SUMS | awk '{print $1}')
+          SHA256_LINUX_X86_64=$(grep "linux-x86_64.tar.gz" /tmp/release/SHA256SUMS | awk '{print $1}')
 
           sed \
             -e "s/PLACEHOLDER_VERSION/${VERSION}/g" \

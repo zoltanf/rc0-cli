@@ -13,26 +13,24 @@ class Rc0 < Formula
 
   on_macos do
     on_arm do
-      url "https://github.com/zoltanf/rc0-cli/releases/download/v#{version}/rc0-#{version}-macos-arm64"
+      url "https://github.com/zoltanf/rc0-cli/releases/download/v#{version}/rc0-#{version}-macos-arm64.tar.gz"
       sha256 "PLACEHOLDER_SHA256_MACOS_ARM64"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/zoltanf/rc0-cli/releases/download/v#{version}/rc0-#{version}-linux-arm64"
+      url "https://github.com/zoltanf/rc0-cli/releases/download/v#{version}/rc0-#{version}-linux-arm64.tar.gz"
       sha256 "PLACEHOLDER_SHA256_LINUX_ARM64"
     end
     on_intel do
-      url "https://github.com/zoltanf/rc0-cli/releases/download/v#{version}/rc0-#{version}-linux-x86_64"
+      url "https://github.com/zoltanf/rc0-cli/releases/download/v#{version}/rc0-#{version}-linux-x86_64.tar.gz"
       sha256 "PLACEHOLDER_SHA256_LINUX_X86_64"
     end
   end
 
   def install
-    bin.install Dir["rc0-*"].first => "rc0"
-    # Remove macOS quarantine flag — binary is unsigned (PyInstaller).
-    system "xattr", "-d", "com.apple.quarantine", "#{bin}/rc0" if OS.mac?
+    bin.install "rc0"
   end
 
   test do
