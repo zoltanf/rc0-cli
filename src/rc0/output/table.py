@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 from typing import TYPE_CHECKING, Any
 
 from rich.console import Console
@@ -17,7 +18,7 @@ def render(
     columns: Sequence[str] | None = None,
     title: str | None = None,
 ) -> str:
-    console = Console(record=True, soft_wrap=False)
+    console = Console(record=True, soft_wrap=False, file=io.StringIO())
 
     if data is None:
         return ""
