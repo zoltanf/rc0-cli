@@ -113,6 +113,77 @@ def test_nxdomains_rejects_explicit_iso_date(cli: CliRunner, isolated_config: Pa
 
 
 @respx.mock
+def test_nxdomains_zone_filter_keeps_matching_rows(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    """``--zone`` must drop rows whose domain does not match (client-side filter)."""
+    respx.get("https://my.rcodezero.at/api/v2/reports/nxdomains").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "date": "2026-04-23",
+                    "domain": "a.example.",
+                    "qname": "x",
+                    "qtype": "A",
+                    "querycount": 1,
+                },
+                {
+                    "date": "2026-04-23",
+                    "domain": "b.example.",
+                    "qname": "y",
+                    "qtype": "A",
+                    "querycount": 2,
+                },
+                {
+                    "date": "2026-04-23",
+                    "domain": "a.example.",
+                    "qname": "z",
+                    "qtype": "A",
+                    "querycount": 3,
+                },
+            ],
+        ),
+    )
+    r = cli.invoke(
+        app,
+        ["--token", "tk", "-o", "json", "report", "nxdomains", "--zone", "a.example"],
+    )
+    assert r.exit_code == 0, r.stdout
+    rows = json.loads(r.stdout)
+    assert [row["domain"] for row in rows] == ["a.example.", "a.example."]
+
+
+@respx.mock
+def test_nxdomains_zone_filter_ignores_trailing_dot(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    """Both ``example.com`` and ``example.com.`` must match the same API rows."""
+    respx.get("https://my.rcodezero.at/api/v2/reports/nxdomains").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "date": "2026-04-23",
+                    "domain": "example.com.",
+                    "qname": "x",
+                    "qtype": "A",
+                    "querycount": 1,
+                },
+            ],
+        ),
+    )
+    r = cli.invoke(
+        app,
+        ["--token", "tk", "-o", "json", "report", "nxdomains", "--zone", "example.com."],
+    )
+    assert r.exit_code == 0, r.stdout
+    assert len(json.loads(r.stdout)) == 1
+
+
+@respx.mock
 def test_nxdomains_empty_body_returns_empty_list(cli: CliRunner, isolated_config: Path) -> None:
     """Empty API body must not crash — returns [] gracefully."""
     respx.get("https://my.rcodezero.at/api/v2/reports/nxdomains").mock(

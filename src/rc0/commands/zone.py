@@ -41,6 +41,10 @@ def list_cmd(
 ) -> None:
     """List zones on the account. API: GET /api/v2/zones
 
+    Columns: domain, type (MASTER/SLAVE), serial, dnssec (yes/no),
+    last_check (timestamp of last zone check; '-' when the zone has
+    never been checked).
+
     Examples:
 
       rc0 zone list

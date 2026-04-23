@@ -71,6 +71,79 @@ def test_stats_non_deprecated(
 
 
 @respx.mock
+def test_stats_queries_sends_days_param(cli: CliRunner, isolated_config: Path) -> None:
+    """``--days N`` must be forwarded to /stats/querycounts as a query parameter."""
+    route = respx.get("https://my.rcodezero.at/api/v2/stats/querycounts").mock(
+        return_value=httpx.Response(200, json=[]),
+    )
+    r = cli.invoke(app, ["--token", "tk", "-o", "json", "stats", "queries", "--days", "7"])
+    assert r.exit_code == 0, r.stdout
+    assert route.called
+    assert dict(route.calls[0].request.url.params)["days"] == "7"
+
+
+@respx.mock
+def test_stats_topzones_sends_days_param(cli: CliRunner, isolated_config: Path) -> None:
+    """``--days N`` must be forwarded to /stats/topzones as a query parameter."""
+    route = respx.get("https://my.rcodezero.at/api/v2/stats/topzones").mock(
+        return_value=httpx.Response(200, json=[]),
+    )
+    r = cli.invoke(app, ["--token", "tk", "-o", "json", "stats", "topzones", "--days", "14"])
+    assert r.exit_code == 0, r.stdout
+    assert route.called
+    assert dict(route.calls[0].request.url.params)["days"] == "14"
+
+
+@respx.mock
+def test_stats_queries_omits_days_when_not_provided(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    """Without ``--days`` the request must not send a ``days`` param (API default)."""
+    route = respx.get("https://my.rcodezero.at/api/v2/stats/querycounts").mock(
+        return_value=httpx.Response(200, json=[]),
+    )
+    r = cli.invoke(app, ["--token", "tk", "-o", "json", "stats", "queries"])
+    assert r.exit_code == 0, r.stdout
+    assert "days" not in dict(route.calls[0].request.url.params)
+
+
+def test_stats_queries_rejects_days_out_of_range(cli: CliRunner, isolated_config: Path) -> None:
+    """``--days`` must be clamped to [1, 180] by Typer validation."""
+    r = cli.invoke(app, ["--token", "tk", "stats", "queries", "--days", "200"])
+    assert r.exit_code == 2
+
+
+@respx.mock
+def test_stats_zone_queries_slices_days_client_side(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    """The zone-queries endpoint has no ``days`` param; ``--days`` must slice client-side."""
+    full_history = [
+        {"date": f"2026-04-{d:02d}", "qcount": d * 10, "nxcount": d} for d in range(1, 21)
+    ]
+    route = respx.get("https://my.rcodezero.at/api/v2/zones/example.com/stats/queries").mock(
+        return_value=httpx.Response(200, json=full_history),
+    )
+    r = cli.invoke(
+        app,
+        ["--token", "tk", "-o", "json", "stats", "zone", "queries", "example.com", "--days", "5"],
+    )
+    assert r.exit_code == 0, r.stdout
+    assert "days" not in dict(route.calls[0].request.url.params)
+    rows = json.loads(r.stdout)
+    assert len(rows) == 5
+    assert [row["date"] for row in rows] == [
+        "2026-04-16",
+        "2026-04-17",
+        "2026-04-18",
+        "2026-04-19",
+        "2026-04-20",
+    ]
+
+
+@respx.mock
 def test_stats_topmagnitude_emits_deprecation_warning(
     cli: CliRunner,
     isolated_config: Path,
