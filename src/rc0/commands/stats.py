@@ -24,16 +24,35 @@ app.add_typer(zone_app, name="zone")
 
 ZoneArg = Annotated[str, typer.Argument(help="Fully-qualified zone apex, e.g. example.com.")]
 
+DaysOpt = Annotated[
+    int | None,
+    typer.Option(
+        "--days",
+        min=1,
+        max=180,
+        help="Lookback window in days (1-180). API default is 30.",
+    ),
+]
+
 
 # ----------------------------------------------------------- top-level (live)
 
 
 @app.command("queries")
-def queries_cmd(ctx: typer.Context) -> None:
-    """Query counts per day. API: GET /api/v2/stats/querycounts"""
+def queries_cmd(ctx: typer.Context, days: DaysOpt = None) -> None:
+    """Query counts per day. API: GET /api/v2/stats/querycounts
+
+    Columns: date, count (total queries), nxcount (NXDOMAIN responses).
+
+    Examples:
+
+      rc0 stats queries
+      rc0 stats queries --days 7
+      rc0 -o tsv stats queries --days 30
+    """
     state: AppState = ctx.obj
     with _client(state) as client:
-        rows = stats_api.list_querycounts(client)
+        rows = stats_api.list_querycounts(client, days=days)
     typer.echo(
         render(
             [r.model_dump(exclude_none=True) for r in rows],
@@ -44,11 +63,20 @@ def queries_cmd(ctx: typer.Context) -> None:
 
 
 @app.command("topzones")
-def topzones_cmd(ctx: typer.Context) -> None:
-    """Top zones by traffic. API: GET /api/v2/stats/topzones"""
+def topzones_cmd(ctx: typer.Context, days: DaysOpt = None) -> None:
+    """Top zones by traffic. API: GET /api/v2/stats/topzones
+
+    Returns up to 1000 zones ranked by query count over the lookback
+    window. Columns: domain, qc (query count).
+
+    Examples:
+
+      rc0 stats topzones
+      rc0 stats topzones --days 7
+    """
     state: AppState = ctx.obj
     with _client(state) as client:
-        rows = stats_api.list_topzones(client)
+        rows = stats_api.list_topzones(client, days=days)
     typer.echo(
         render(
             [r.model_dump(exclude_none=True) for r in rows],
@@ -124,11 +152,24 @@ def topqnames_cmd(ctx: typer.Context) -> None:
 
 
 @zone_app.command("queries")
-def zone_queries_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
-    """Query counts for one zone. API: GET /api/v2/zones/{zone}/stats/queries"""
+def zone_queries_cmd(ctx: typer.Context, zone: ZoneArg, days: DaysOpt = None) -> None:
+    """Query counts for one zone. API: GET /api/v2/zones/{zone}/stats/queries
+
+    Columns: date, qcount (total queries), nxcount (NXDOMAIN responses).
+
+    The API always returns the full 180-day history; --days N keeps
+    only the most recent N days client-side.
+
+    Examples:
+
+      rc0 stats zone queries example.com
+      rc0 stats zone queries example.com --days 7
+    """
     state: AppState = ctx.obj
     with _client(state) as client:
         rows = stats_api.list_zone_queries(client, zone)
+    if days is not None:
+        rows = sorted(rows, key=lambda r: r.date or "")[-days:]
     typer.echo(
         render(
             [r.model_dump(exclude_none=True) for r in rows],

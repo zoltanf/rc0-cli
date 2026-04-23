@@ -89,12 +89,34 @@ def nxdomains_cmd(
         str | None,
         typer.Option("--day", help=_NXDOMAIN_DAY_HELP),
     ] = None,
+    zone: Annotated[
+        str | None,
+        typer.Option(
+            "--zone",
+            help="Filter results to a single zone apex (client-side; trailing dot ignored).",
+        ),
+    ] = None,
 ) -> None:
-    """NXDOMAIN report. API: GET /api/v2/reports/nxdomains"""
+    """NXDOMAIN report. API: GET /api/v2/reports/nxdomains
+
+    Columns: date, domain, qname, qtype, querycount.
+
+    The API itself has no zone parameter for this endpoint, so --zone
+    is applied client-side after fetching the full account-wide report.
+
+    Examples:
+
+      rc0 report nxdomains
+      rc0 report nxdomains --day yesterday
+      rc0 report nxdomains --zone example.com
+    """
     _validate_nxdomain_day(day)
     state: AppState = ctx.obj
     with _client(state) as client:
         rows = reports_api.list_nxdomains(client, day=day)
+    if zone is not None:
+        target = zone.rstrip(".")
+        rows = [r for r in rows if (r.domain or "").rstrip(".") == target]
     typer.echo(
         render(
             [r.model_dump(exclude_none=True) for r in rows],

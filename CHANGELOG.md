@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.7] — 2026-04-23
+
+### Added
+- `rc0 stats queries` and `rc0 stats topzones` now accept `--days N` (1-180),
+  forwarded to the API's `days` query parameter. Without the flag the API
+  default of 30 days still applies.
+- `rc0 stats zone queries` accepts `--days N` as a client-side slice of the
+  most recent N days, since the upstream endpoint has no `days` parameter and
+  always returns the full 180-day history.
+- `rc0 report nxdomains --zone <apex>` filters the report to a single zone
+  client-side (trailing dots are ignored). The underlying API has no zone
+  parameter for this endpoint, so the filter runs after fetching the full
+  account-wide response.
+
+### Changed
+- Help text for `rc0 zone list`, `rc0 stats queries`, `rc0 stats zone queries`,
+  `rc0 stats topzones`, and `rc0 report nxdomains` now names the output
+  columns and their meaning. Previously only the table output carried
+  headers; when piped (plain/TSV fallback) users had to guess which column
+  was which. Use `-o tsv` or `-o csv` to get headers in redirected output.
+
 ## [1.0.6] — 2026-04-23
 
 ### Fixed

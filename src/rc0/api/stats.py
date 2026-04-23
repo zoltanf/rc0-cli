@@ -7,7 +7,7 @@ a single GET and parses the array into model instances.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from rc0.models.stats import (
     CountryRow,
@@ -26,14 +26,34 @@ if TYPE_CHECKING:
     from rc0.client.http import Client
 
 
-def list_querycounts(client: Client) -> list[QueryCountRow]:
-    """GET /api/v2/stats/querycounts — bare array."""
-    return [QueryCountRow.model_validate(r) for r in client.get("/api/v2/stats/querycounts").json()]
+def list_querycounts(client: Client, *, days: int | None = None) -> list[QueryCountRow]:
+    """GET /api/v2/stats/querycounts — bare array.
+
+    ``days`` (1-180) selects the size of the lookback window. The API
+    defaults to 30 when the parameter is omitted.
+    """
+    params: dict[str, Any] = {}
+    if days is not None:
+        params["days"] = days
+    return [
+        QueryCountRow.model_validate(r)
+        for r in client.get("/api/v2/stats/querycounts", params=params).json()
+    ]
 
 
-def list_topzones(client: Client) -> list[TopzoneRow]:
-    """GET /api/v2/stats/topzones — bare array."""
-    return [TopzoneRow.model_validate(r) for r in client.get("/api/v2/stats/topzones").json()]
+def list_topzones(client: Client, *, days: int | None = None) -> list[TopzoneRow]:
+    """GET /api/v2/stats/topzones — bare array.
+
+    ``days`` (1-180) selects the size of the lookback window. The API
+    defaults to 30 when the parameter is omitted.
+    """
+    params: dict[str, Any] = {}
+    if days is not None:
+        params["days"] = days
+    return [
+        TopzoneRow.model_validate(r)
+        for r in client.get("/api/v2/stats/topzones", params=params).json()
+    ]
 
 
 def list_countries(client: Client) -> list[CountryRow]:
