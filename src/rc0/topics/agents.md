@@ -6,15 +6,19 @@ agent.
 
 ## Machine-readable output
 
-Always pass `-o json` in scripts and agent tool calls. This gives you
-deterministic, parseable output regardless of terminal width or colour support.
+Always pass `-o json` **before the subcommand** in scripts and agent tool
+calls. This gives you deterministic, parseable output regardless of terminal
+width or colour support.
+
+> **Note:** `-o` / `--output` is a global flag and must appear before the
+> subcommand name: `rc0 -o json zone list`, **not** `rc0 zone list -o json`.
 
 ```bash
 # List all zones as JSON
-rc0 zone list -o json --all
+rc0 -o json zone list --all
 
 # Add a record and capture the result
-rc0 record add example.com --name www --type A --ttl 3600 --content 10.0.0.1 -o json
+rc0 -o json record add example.com --name www --type A --ttl 3600 --content 10.0.0.1
 ```
 
 ## Exit codes
@@ -23,7 +27,7 @@ Every command returns a specific exit code. Check the exit code, not the output
 text, to detect success or failure.
 
 ```bash
-rc0 zone show example.com -o json
+rc0 -o json zone show example.com
 if [ $? -ne 0 ]; then
   echo "Zone does not exist or request failed"
 fi
@@ -50,7 +54,7 @@ With `-o json`, errors are written as JSON to **stderr**:
 Redirect stderr separately if you need to parse errors:
 
 ```bash
-rc0 zone show missing.example.com -o json 2>err.json
+rc0 -o json zone show missing.example.com 2>err.json
 ```
 
 ## Skipping confirmation prompts
@@ -58,7 +62,7 @@ rc0 zone show missing.example.com -o json 2>err.json
 Destructive commands prompt interactively. Pass `-y` / `--yes` to skip:
 
 ```bash
-rc0 zone delete old.example.com -y -o json
+rc0 -y -o json zone delete old.example.com
 ```
 
 ## Dry-run before mutating
@@ -68,7 +72,7 @@ dry-run record is printed as JSON (or the active output format) and the process
 exits 0. Agents can log or validate the intended request before committing.
 
 ```bash
-rc0 zone create new.example.com --type master --dry-run -o json
+rc0 --dry-run -o json zone create new.example.com --type master
 ```
 
 Output shape:
@@ -93,7 +97,7 @@ default, and example. LLM agents can enumerate the full CLI without parsing
 help text:
 
 ```bash
-rc0 introspect -o json
+rc0 -o json introspect
 ```
 
 ## Pagination
@@ -102,7 +106,7 @@ Long lists are paginated. Pass `--all` to fetch every page automatically and
 emit the full array as a single JSON array:
 
 ```bash
-rc0 zone list -o json --all | jq '.[] | select(.dnssec == "no") | .domain'
+rc0 -o json zone list --all | jq '.[] | select(.dnssec == "no") | .domain'
 ```
 
 See `rc0 help pagination` for page-by-page control.
@@ -113,14 +117,14 @@ In CI environments, set `RC0_API_TOKEN` instead of using the keyring:
 
 ```bash
 export RC0_API_TOKEN="your-token-here"
-rc0 zone list -o json
+rc0 -o json zone list
 ```
 
 The token is **never** printed, logged, or included in `--dry-run` output.
 
 ## Recommended agent pattern
 
-1. Call `rc0 introspect -o json` once at session start to discover the command
+1. Call `rc0 -o json introspect` once at session start to discover the command
    surface.
 2. Use `--dry-run -o json` before any mutation to validate the intended
    request.

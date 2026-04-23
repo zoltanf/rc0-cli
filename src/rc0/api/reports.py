@@ -8,6 +8,7 @@ but do not paginate.
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 
 from rc0.client.pagination import iter_all, iter_pages
@@ -21,6 +22,15 @@ from rc0.models.reports import (
 
 if TYPE_CHECKING:
     from rc0.client.http import Client
+
+
+def _resolve_day(day: str | None) -> str | None:
+    """Translate 'today'/'yesterday' to ISO-format dates; pass other values through."""
+    if day == "today":
+        return date.today().isoformat()
+    if day == "yesterday":
+        return (date.today() - timedelta(days=1)).isoformat()
+    return day
 
 
 def list_problematic_zones(
@@ -51,9 +61,12 @@ def list_problematic_zones(
 def list_nxdomains(client: Client, *, day: str | None = None) -> list[NxdomainRow]:
     """GET /api/v2/reports/nxdomains — bare array."""
     params: dict[str, Any] = {}
-    if day is not None:
-        params["day"] = day
+    resolved_day = _resolve_day(day)
+    if resolved_day is not None:
+        params["day"] = resolved_day
     response = client.get("/api/v2/reports/nxdomains", params=params or None)
+    if not response.content:
+        return []
     return [NxdomainRow.model_validate(r) for r in response.json()]
 
 
@@ -63,6 +76,8 @@ def list_accounting(client: Client, *, month: str | None = None) -> list[Account
     if month is not None:
         params["month"] = month
     response = client.get("/api/v2/reports/accounting", params=params or None)
+    if not response.content:
+        return []
     return [AccountingRow.model_validate(r) for r in response.json()]
 
 
@@ -77,11 +92,14 @@ def list_queryrates(
     params: dict[str, Any] = {}
     if month is not None:
         params["month"] = month
-    if day is not None:
-        params["day"] = day
+    resolved_day = _resolve_day(day)
+    if resolved_day is not None:
+        params["day"] = resolved_day
     if include_nx:
         params["include_nx"] = "1"
     response = client.get("/api/v2/reports/queryrates", params=params or None)
+    if not response.content:
+        return []
     return [QueryRateRow.model_validate(r) for r in response.json()]
 
 

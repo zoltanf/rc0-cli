@@ -1,6 +1,12 @@
 # Output formats
 
-Every `rc0` command supports `--output` / `-o`:
+Every `rc0` command supports `--output` / `-o`. Because it is a **global flag**,
+it must appear **before** the subcommand name:
+
+```bash
+rc0 -o json zone list --all   # correct
+rc0 zone list --all -o json   # WRONG — will error
+```
 
 | `-o` value | When to use |
 |------------|-------------|

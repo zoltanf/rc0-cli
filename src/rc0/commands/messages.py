@@ -52,7 +52,7 @@ def list_cmd(
     Examples:
 
       rc0 messages list
-      rc0 messages list -o json --all
+      rc0 -o json messages list --all
     """
     state: AppState = ctx.obj
     _validate_pagination(fetch_all, page)
@@ -98,7 +98,7 @@ def ack_all_cmd(ctx: typer.Context) -> None:
 
       rc0 messages ack-all
       rc0 messages ack-all -y
-      rc0 messages ack-all --dry-run -o json
+      rc0 --dry-run -o json messages ack-all
     """
     state: AppState = ctx.obj
     if state.dry_run:

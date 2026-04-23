@@ -54,7 +54,7 @@ def zone_exists_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
     Examples:
 
       rc0 acme zone-exists example.com
-      rc0 acme zone-exists example.com -o json
+      rc0 -o json acme zone-exists example.com
     """
     state: AppState = ctx.obj
     with _acme_client(state) as client:
@@ -81,7 +81,7 @@ def list_challenges_cmd(
     Examples:
 
       rc0 acme list-challenges example.com
-      rc0 acme list-challenges example.com -o json
+      rc0 -o json acme list-challenges example.com
     """
     state: AppState = ctx.obj
     with _acme_client(state) as client:
@@ -110,7 +110,7 @@ def add_challenge_cmd(
 
       rc0 acme add-challenge example.com --value abc123token
       rc0 acme add-challenge example.com --value abc123token --ttl 120
-      rc0 acme add-challenge example.com --value abc123token --dry-run -o json
+      rc0 --dry-run -o json acme add-challenge example.com --value abc123token
     """
     state: AppState = ctx.obj
     with _acme_client(state) as client:
@@ -134,7 +134,7 @@ def remove_challenge_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
 
       rc0 acme remove-challenge example.com
       rc0 acme remove-challenge example.com -y
-      rc0 acme remove-challenge example.com --dry-run -o json
+      rc0 --dry-run -o json acme remove-challenge example.com
     """
     state: AppState = ctx.obj
     if not state.dry_run and not state.yes:

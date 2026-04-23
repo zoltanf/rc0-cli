@@ -29,7 +29,7 @@ Would create master zone example.com with 1 master IP(s).
 ## Machine output
 
 ```
-$ rc0 zone create example.com --type master --dry-run -o json
+$ rc0 --dry-run -o json zone create example.com --type master
 {
   "dry_run": true,
   "request": {
@@ -58,7 +58,7 @@ They are different.
 You can combine them:
 
 ```
-$ rc0 zone test example.com --type master --dry-run -o json
+$ rc0 --dry-run -o json zone test example.com --type master
 ```
 
 …prints the HTTP request that `zone test` would have sent.

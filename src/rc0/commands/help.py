@@ -21,18 +21,27 @@ TOPICS_PACKAGE = "rc0.topics"
 
 def available_topics() -> list[str]:
     """Return the list of ``.md`` topics shipped in the package."""
-    topics: list[str] = []
-    for entry in resources.files(TOPICS_PACKAGE).iterdir():
-        name = entry.name
-        if name.endswith(".md"):
-            topics.append(name.removesuffix(".md"))
-    return sorted(topics)
+    try:
+        topics: list[str] = []
+        for entry in resources.files(TOPICS_PACKAGE).iterdir():
+            name = entry.name
+            if name.endswith(".md"):
+                topics.append(name.removesuffix(".md"))
+        return sorted(topics)
+    except ModuleNotFoundError:
+        return []
 
 
 @app.command("list")
 def list_topics(ctx: typer.Context) -> None:
     """Print the topics installed with this rc0 build."""
-    for t in available_topics():
+    topics = available_topics()
+    if not topics:
+        raise NotFoundError(
+            "Help topics are not available in this build.",
+            hint="Install rc0 from PyPI for full help: pip install rc0-cli",
+        )
+    for t in topics:
         typer.echo(t)
 
 
@@ -54,6 +63,11 @@ def show(
         return
     try:
         data = resources.files(TOPICS_PACKAGE).joinpath(f"{topic}.md").read_text(encoding="utf-8")
+    except ModuleNotFoundError as exc:
+        raise NotFoundError(
+            "Help topics are not available in this build.",
+            hint="Install rc0 from PyPI for full help: pip install rc0-cli",
+        ) from exc
     except (FileNotFoundError, OSError) as exc:
         raise NotFoundError(
             f"No help topic named {topic!r}.",

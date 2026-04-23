@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4] — 2026-04-23
+
+### Fixed
+- `rc0 help list` no longer crashes with `ModuleNotFoundError: No module named
+  'rc0.topics'` in the PyInstaller binary. The spec now bundles the `topics/`
+  directory (`datas`) and declares `rc0.topics` as a hidden import. The `help`
+  command also catches `ModuleNotFoundError` at runtime and emits a clean error
+  instead of crashing.
+- `rc0 report accounting` no longer crashes with `JSONDecodeError` when the API
+  returns an empty body (HTTP 2xx, no content). It now returns an empty list.
+- `rc0 report nxdomains --day today` (and `--day yesterday`) no longer crashes
+  with `JSONDecodeError`. The keywords `today` and `yesterday` are now resolved
+  client-side to ISO-format dates (`YYYY-MM-DD`) before the API call is made.
+  The same resolution applies to `rc0 report queryrates --day today/yesterday`.
+- `rc0 report queryrates` with no `--day` or `--month` now prints a clear
+  `BadParameter` message and exits 2 instead of sending an empty request and
+  surfacing an opaque API error.
+
+### Changed
+- All ~40 help-text examples that showed `rc0 SUBCMD ... -o json` (wrong
+  order) have been corrected to `rc0 -o json SUBCMD ...`. The `output-formats`
+  topic now documents that `-o`/`--output` is a global flag and must precede
+  the subcommand.
+
 ## [1.0.3] — 2026-04-23
 
 ### Changed

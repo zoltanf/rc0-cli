@@ -29,6 +29,8 @@ PageSizeOpt = Annotated[
     typer.Option("--page-size", min=1, max=1000, help="Rows per page (default 50)."),
 ]
 
+_DAY_HELP = "Filter by day: 'today', 'yesterday', or YYYY-MM-DD."
+
 
 @app.command("problematic-zones")
 def problematic_zones_cmd(
@@ -60,7 +62,7 @@ def nxdomains_cmd(
     ctx: typer.Context,
     day: Annotated[
         str | None,
-        typer.Option("--day", help="Filter: 'today' or 'yesterday'."),
+        typer.Option("--day", help=_DAY_HELP),
     ] = None,
 ) -> None:
     """NXDOMAIN report. API: GET /api/v2/reports/nxdomains"""
@@ -109,11 +111,11 @@ def queryrates_cmd(
     ctx: typer.Context,
     month: Annotated[
         str | None,
-        typer.Option("--month", help="Filter by month, e.g. '2026-04'."),
+        typer.Option("--month", help="Filter by month, e.g. '2026-04'. Required if --day omitted."),
     ] = None,
     day: Annotated[
         str | None,
-        typer.Option("--day", help="Filter: 'today' or 'yesterday'."),
+        typer.Option("--day", help=f"{_DAY_HELP} Required if --month is omitted."),
     ] = None,
     include_nx: Annotated[
         bool,
@@ -121,6 +123,11 @@ def queryrates_cmd(
     ] = False,
 ) -> None:
     """Per-zone query rates. API: GET /api/v2/reports/queryrates"""
+    if month is None and day is None:
+        raise typer.BadParameter(
+            "Provide either --day (e.g. 'today', 'YYYY-MM-DD') or --month (e.g. '2026-04').",
+            param_hint="'--day' / '--month'",
+        )
     state: AppState = ctx.obj
     with _client(state) as client:
         rows = reports_api.list_queryrates(

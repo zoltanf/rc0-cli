@@ -61,7 +61,7 @@ def list_cmd(
 
       rc0 record list example.com
       rc0 record list example.com --name www --type A
-      rc0 record list example.com -o json --all
+      rc0 -o json record list example.com --all
     """
     state: AppState = ctx.obj
     _validate_pagination(fetch_all, page)
@@ -195,7 +195,7 @@ def add_cmd(
       rc0 record add example.com --name www --type A --content 10.0.0.1
       rc0 record add example.com --name mail --type MX --content '10 mail.example.com.'
       rc0 record add example.com --name www --type A --content 10.0.0.1 --content 10.0.0.2
-      rc0 record add example.com --name www --type A --content 10.0.0.1 --dry-run -o json
+      rc0 --dry-run -o json record add example.com --name www --type A --content 10.0.0.1
     """
     state: AppState = ctx.obj
     change = rrsets_parse.from_flags(
@@ -282,7 +282,7 @@ def delete_cmd(
 
       rc0 record delete example.com --name www --type A
       rc0 record delete example.com --name www --type A -y
-      rc0 record delete example.com --name www --type A --dry-run -o json
+      rc0 --dry-run -o json record delete example.com --name www --type A
     """
     state: AppState = ctx.obj
     change = rrsets_parse.from_flags(

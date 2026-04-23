@@ -48,7 +48,7 @@ def sign_cmd(
 
       rc0 dnssec sign example.com
       rc0 dnssec sign example.com --enable-cds-cdnskey
-      rc0 dnssec sign example.com --dry-run -o json
+      rc0 --dry-run -o json dnssec sign example.com
     """
     state: AppState = ctx.obj
     with _client(state) as client:
@@ -80,7 +80,7 @@ def unsign_cmd(
 
       rc0 dnssec unsign example.com --force
       rc0 dnssec unsign example.com --force -y
-      rc0 dnssec unsign example.com --force --dry-run -o json
+      rc0 --dry-run -o json dnssec unsign example.com --force
     """
     state: AppState = ctx.obj
     if not force:
@@ -120,7 +120,7 @@ def ack_ds_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
     Examples:
 
       rc0 dnssec ack-ds example.com
-      rc0 dnssec ack-ds example.com --dry-run -o json
+      rc0 --dry-run -o json dnssec ack-ds example.com
     """
     state: AppState = ctx.obj
     with _client(state) as client:

@@ -44,7 +44,7 @@ def list_cmd(
     Examples:
 
       rc0 zone list
-      rc0 zone list -o json --all
+      rc0 -o json zone list --all
       rc0 zone list --page 2 --page-size 20
     """
     state: AppState = ctx.obj
@@ -73,7 +73,7 @@ def show_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
     Examples:
 
       rc0 zone show example.com
-      rc0 zone show example.com -o json
+      rc0 -o json zone show example.com
     """
     state: AppState = ctx.obj
     with _client(state) as client:
@@ -150,7 +150,7 @@ def create_cmd(
 
       rc0 zone create example.com
       rc0 zone create example.com --type slave --master 1.2.3.4
-      rc0 zone create example.com --dry-run -o json
+      rc0 --dry-run -o json zone create example.com
     """
     state: AppState = ctx.obj
     with _client(state) as client:
@@ -184,7 +184,7 @@ def update_cmd(
 
       rc0 zone update example.com --cds
       rc0 zone update example.com --serial-auto
-      rc0 zone update example.com --dry-run -o json
+      rc0 --dry-run -o json zone update example.com
     """
     state: AppState = ctx.obj
     with _client(state) as client:
@@ -238,7 +238,7 @@ def delete_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
 
       rc0 zone delete example.com
       rc0 zone delete example.com -y
-      rc0 zone delete example.com --dry-run -o json
+      rc0 --dry-run -o json zone delete example.com
     """
     state: AppState = ctx.obj
     if not state.dry_run and not state.yes:

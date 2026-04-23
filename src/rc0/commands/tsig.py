@@ -40,7 +40,7 @@ def list_cmd(
     Examples:
 
       rc0 tsig list
-      rc0 tsig list -o json
+      rc0 -o json tsig list
     """
     state: AppState = ctx.obj
     _validate_pagination(fetch_all, page)
@@ -115,7 +115,7 @@ def add_cmd(
     Examples:
 
       rc0 tsig add mykey --algorithm hmac-sha256 --secret base64secret==
-      rc0 tsig add mykey --algorithm hmac-sha256 --secret base64secret== --dry-run -o json
+      rc0 --dry-run -o json tsig add mykey --algorithm hmac-sha256 --secret base64secret==
     """
     state: AppState = ctx.obj
     with _client(state) as client:
@@ -159,7 +159,7 @@ def delete_cmd(ctx: typer.Context, name: NameArg) -> None:
 
       rc0 tsig delete mykey
       rc0 tsig delete mykey -y
-      rc0 tsig delete mykey --dry-run -o json
+      rc0 --dry-run -o json tsig delete mykey
     """
     state: AppState = ctx.obj
     if not state.dry_run and not state.yes:
