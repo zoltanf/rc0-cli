@@ -31,6 +31,8 @@ class Rc0 < Formula
 
   def install
     bin.install Dir["rc0-*"].first => "rc0"
+    # Remove macOS quarantine flag — binary is unsigned (PyInstaller).
+    system "xattr", "-d", "com.apple.quarantine", "#{bin}/rc0" if OS.mac?
   end
 
   test do
