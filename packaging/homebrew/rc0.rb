@@ -16,10 +16,6 @@ class Rc0 < Formula
       url "https://github.com/zoltanf/rc0-cli/releases/download/v#{version}/rc0-#{version}-macos-arm64"
       sha256 "PLACEHOLDER_SHA256_MACOS_ARM64"
     end
-    on_intel do
-      url "https://github.com/zoltanf/rc0-cli/releases/download/v#{version}/rc0-#{version}-macos-x86_64"
-      sha256 "PLACEHOLDER_SHA256_MACOS_X86_64"
-    end
   end
 
   on_linux do

@@ -38,8 +38,6 @@ jobs:
         include:
           - os: macos-14
             artifact_name: rc0-macos-arm64
-          - os: macos-13
-            artifact_name: rc0-macos-x86_64
           - os: ubuntu-24.04
             artifact_name: rc0-linux-x86_64
           - os: ubuntu-24.04-arm
@@ -132,15 +130,13 @@ jobs:
           VERSION="${{ github.ref_name }}"
           VERSION="${VERSION#v}"
 
-          SHA256_MACOS_ARM64=$(grep  "macos-arm64"   /tmp/release/SHA256SUMS | awk '{print $1}')
-          SHA256_MACOS_X86_64=$(grep "macos-x86_64"  /tmp/release/SHA256SUMS | awk '{print $1}')
-          SHA256_LINUX_ARM64=$(grep  "linux-arm64"   /tmp/release/SHA256SUMS | awk '{print $1}')
-          SHA256_LINUX_X86_64=$(grep "linux-x86_64"  /tmp/release/SHA256SUMS | awk '{print $1}')
+          SHA256_MACOS_ARM64=$(grep "macos-arm64"  /tmp/release/SHA256SUMS | awk '{print $1}')
+          SHA256_LINUX_ARM64=$(grep "linux-arm64"  /tmp/release/SHA256SUMS | awk '{print $1}')
+          SHA256_LINUX_X86_64=$(grep "linux-x86_64" /tmp/release/SHA256SUMS | awk '{print $1}')
 
           sed \
             -e "s/PLACEHOLDER_VERSION/${VERSION}/g" \
             -e "s/PLACEHOLDER_SHA256_MACOS_ARM64/${SHA256_MACOS_ARM64}/g" \
-            -e "s/PLACEHOLDER_SHA256_MACOS_X86_64/${SHA256_MACOS_X86_64}/g" \
             -e "s/PLACEHOLDER_SHA256_LINUX_ARM64/${SHA256_LINUX_ARM64}/g" \
             -e "s/PLACEHOLDER_SHA256_LINUX_X86_64/${SHA256_LINUX_X86_64}/g" \
             packaging/homebrew/rc0.rb > /tmp/rc0.rb
