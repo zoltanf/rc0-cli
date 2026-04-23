@@ -3,16 +3,16 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+import os
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner
 
 from rc0 import __version__ as rc0_version
 from rc0.app import app
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 @pytest.fixture
@@ -116,3 +116,24 @@ def test_zone_list_help_uses_correct_output_flag_position(
     assert "zone list -o json" not in r.stdout, (
         "example places -o after subcommand; it must come before: rc0 -o json zone list"
     )
+
+
+def test_main_entrypoint_hoists_argv(tmp_path: Path) -> None:
+    """End-to-end: invoking ``python -m rc0`` must hoist post-subcommand flags."""
+    env = {
+        **os.environ,
+        "XDG_CONFIG_HOME": str(tmp_path),
+        "PYTHONPATH": str(Path(__file__).resolve().parents[2] / "src"),
+    }
+    env.pop("RC0_CONFIG", None)
+    env.pop("RC0_API_TOKEN", None)
+    r = subprocess.run(
+        [sys.executable, "-m", "rc0", "config", "show", "-o", "json"],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+    assert r.returncode == 0, f"stderr={r.stderr}\nstdout={r.stdout}"
+    parsed = json.loads(r.stdout)
+    assert parsed["profile"] == "default"

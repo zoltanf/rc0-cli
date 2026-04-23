@@ -54,14 +54,32 @@ jobs:
       - name: Build binary
         shell: bash
         run: |
+          # PyInstaller's --add-data separator: ':' on Unix/macOS, ';' on Windows.
           if [ "${{ runner.os }}" = "Windows" ]; then
-            uv run pyinstaller --onefile --name rc0 --noupx src/rc0/__main__.py
+            uv run pyinstaller --onefile --name rc0 --noupx \
+              --add-data "src/rc0/topics;rc0/topics" \
+              src/rc0/__main__.py
           else
-            uv run pyinstaller --onedir --name rc0 --noupx src/rc0/__main__.py
+            uv run pyinstaller --onedir --name rc0 --noupx \
+              --add-data "src/rc0/topics:rc0/topics" \
+              src/rc0/__main__.py
           fi
       - name: Strip symbols (Linux only)
         if: runner.os == 'Linux'
         run: strip dist/rc0/rc0
+      - name: Smoke-test bundled topics
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            BIN="dist/rc0.exe"
+          else
+            BIN="dist/rc0/rc0"
+          fi
+          "$BIN" --version
+          "$BIN" help list | tee /tmp/rc0_topics.out
+          grep -q '^authentication$' /tmp/rc0_topics.out
+          grep -q '^pagination$'     /tmp/rc0_topics.out
+          grep -q '^output-formats$' /tmp/rc0_topics.out
       - name: Package and checksum
         id: pkg
         shell: bash

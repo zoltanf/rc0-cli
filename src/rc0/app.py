@@ -12,6 +12,7 @@ import sys
 from pathlib import Path
 from typing import Annotated
 
+import click
 import typer
 
 import rc0
@@ -196,6 +197,66 @@ def version_cmd(ctx: typer.Context) -> None:
 # ----------------------------------------------------------- internal helpers
 
 
+def _derive_global_opt_sets() -> tuple[frozenset[str], frozenset[str]]:
+    # Typer injects these when add_completion=True; they are eager and exit
+    # immediately, so position-hoisting is unnecessary.
+    typer_injected = {"--install-completion", "--show-completion"}
+    value_opts: set[str] = set()
+    noarg_opts: set[str] = set()
+    for param in typer.main.get_command(app).params:
+        if not isinstance(param, click.Option):
+            continue
+        target = noarg_opts if (param.is_flag or param.count) else value_opts
+        for opt in (*param.opts, *param.secondary_opts):
+            if opt in typer_injected:
+                continue
+            target.add(opt)
+    return frozenset(value_opts), frozenset(noarg_opts)
+
+
+_GLOBAL_VALUE_OPTS, _GLOBAL_NOARG_OPTS = _derive_global_opt_sets()
+
+
+def _hoist_global_flags(argv: list[str]) -> list[str]:
+    """Reorder argv so globally-declared flags parse regardless of position.
+
+    Click's Group parser stops consuming group-level options at the first
+    positional (the subcommand name), so ``rc0 zone list -o json`` fails
+    with "No such option: -o". This pre-parser moves any token matching a
+    known global option ahead of the subcommand. After a ``--`` sentinel,
+    tokens are passed through untouched.
+    """
+    hoisted: list[str] = []
+    remaining: list[str] = []
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg == "--":
+            remaining.extend(argv[i:])
+            break
+        if arg.startswith("--") and "=" in arg:
+            key = arg.split("=", 1)[0]
+            if key in _GLOBAL_VALUE_OPTS or key in _GLOBAL_NOARG_OPTS:
+                hoisted.append(arg)
+                i += 1
+                continue
+        if arg in _GLOBAL_VALUE_OPTS:
+            hoisted.append(arg)
+            if i + 1 < len(argv):
+                hoisted.append(argv[i + 1])
+                i += 2
+            else:
+                i += 1
+            continue
+        if arg in _GLOBAL_NOARG_OPTS:
+            hoisted.append(arg)
+            i += 1
+            continue
+        remaining.append(arg)
+        i += 1
+    return hoisted + remaining
+
+
 def _configure_logging(*, verbose: int, log_file: Path | None) -> None:
     level = logging.WARNING
     if verbose == 1:
@@ -233,7 +294,7 @@ def _no_color_env() -> bool:
 def main() -> None:
     """CLI entry point registered in ``pyproject.toml`` as ``rc0``."""
     try:
-        app()
+        app(args=_hoist_global_flags(sys.argv[1:]))
     except ConfirmationDeclined as exc:
         typer.echo(f"error: {exc}", err=True)
         raise typer.Exit(code=exc.exit_code) from exc

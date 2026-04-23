@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.6] — 2026-04-23
+
+### Fixed
+- `rc0 help list` now enumerates topics in the shipped Homebrew/GitHub-
+  Release binaries. The PyInstaller build in `.github/workflows/release.yml`
+  was invoking `pyinstaller` with bare flags that did not bundle
+  `src/rc0/topics`; the release workflow now passes `--add-data
+  src/rc0/topics:rc0/topics` (with `;` on Windows) and runs a post-build
+  smoke test (`rc0 help list | grep authentication`) so a regression fails
+  CI before a release can ship.
+- Every global flag (`-o`/`--output`, `--profile`, `--token`, `--api-url`,
+  `--dry-run`, `-y`/`--yes`, `--no-color`, `-q`/`--quiet`,
+  `-v`/`--verbose`, `--log-file`, `--timeout`, `--retries`, `--config`,
+  `--version`) now parses regardless of position relative to the
+  subcommand. `rc0 zone list -o json --all` and `rc0 -o json zone list
+  --all` are both valid. Implemented via a small argv pre-parser
+  (`rc0.app._hoist_global_flags`) invoked from `main()` before Typer
+  dispatch. Tokens after a literal `--` sentinel are passed through
+  untouched so user-supplied record values that happen to look like flags
+  can still be escaped.
+
 ## [1.0.5] — 2026-04-23
 
 ### Fixed
