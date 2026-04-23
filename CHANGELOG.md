@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] — Post-release fixes
+
+### Added
+- `.github/workflows/nightly.yml` — nightly spec-drift job: fetches the live
+  OpenAPI spec, diffs against `tests/fixtures/openapi.json`, and opens a
+  `spec-drift` GitHub Issue when divergence is detected (§18.5).
+- 40 new unit tests covering `output/table.py`, `output/plain.py`, and
+  `output/csv_tsv.py` (all three now at 100% line coverage).
+
+### Changed
+- Coverage gate raised from 87% → 88% (actual: 89.2% macOS / ~88% Windows).
+
+### Fixed
+- Release workflow (`release.yml`) now passes on Windows: the two skipped
+  auth tests on Windows reduced coverage to 86%, below the old 87% gate.
+
 ## [1.0.0] — v1.0.0 Polish
 
 ### Added

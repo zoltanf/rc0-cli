@@ -1,0 +1,137 @@
+name: Nightly spec-drift
+
+on:
+  schedule:
+    - cron: "0 3 * * *"  # 03:00 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  spec-drift:
+    name: Check OpenAPI spec for drift
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch live OpenAPI spec
+        run: |
+          curl -sSf https://my.rcodezero.at/openapi/rcode0api-v2.json \
+            -o /tmp/live-openapi.json
+
+      - name: Normalise and diff
+        id: diff
+        run: |
+          python3 - <<'PYEOF'
+          import json, sys, os, difflib
+
+          def normalise(path):
+              with open(path) as f:
+                  return json.dumps(json.load(f), sort_keys=True, indent=2)
+
+          pinned = normalise("tests/fixtures/openapi.json")
+          live   = normalise("/tmp/live-openapi.json")
+
+          output_file = os.environ["GITHUB_OUTPUT"]
+
+          if pinned == live:
+              with open(output_file, "a") as f:
+                  f.write("drift=false\n")
+              sys.exit(0)
+
+          # Write unified diff for the issue body
+          diff = list(difflib.unified_diff(
+              pinned.splitlines(keepends=True),
+              live.splitlines(keepends=True),
+              fromfile="pinned (tests/fixtures/openapi.json)",
+              tofile="live (my.rcodezero.at)",
+              n=3,
+          ))
+          with open("/tmp/spec-diff.txt", "w") as f:
+              f.writelines(diff)
+
+          # Summarise added / removed paths
+          p_paths = set(json.loads(pinned).get("paths", {}).keys())
+          l_paths = set(json.loads(live).get("paths",   {}).keys())
+          added   = sorted(l_paths - p_paths)
+          removed = sorted(p_paths - l_paths)
+          lines = []
+          if added:
+              lines.append("**New endpoints:**")
+              lines.extend(f"- `{p}`" for p in added)
+              lines.append("")
+          if removed:
+              lines.append("**Removed endpoints:**")
+              lines.extend(f"- `{p}`" for p in removed)
+              lines.append("")
+          with open("/tmp/spec-summary.txt", "w") as f:
+              f.write("\n".join(lines))
+
+          with open(output_file, "a") as f:
+              f.write("drift=true\n")
+          PYEOF
+
+      - name: Open GitHub Issue on drift
+        if: steps.diff.outputs.drift == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.existsSync('/tmp/spec-summary.txt')
+              ? fs.readFileSync('/tmp/spec-summary.txt', 'utf8')
+              : '';
+            const raw = fs.readFileSync('/tmp/spec-diff.txt', 'utf8');
+            const diff = raw.length > 60000 ? raw.slice(0, 60000) + '\n… (truncated)' : raw;
+
+            const today = new Date().toISOString().slice(0, 10);
+            const title = `chore: OpenAPI spec drift detected (${today})`;
+
+            // Avoid duplicate open issues
+            const { data: existing } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              state: 'open',
+              labels: 'spec-drift',
+              per_page: 10,
+            });
+            const dupe = existing.find(i => i.title.startsWith('chore: OpenAPI spec drift detected'));
+            if (dupe) {
+              core.info(`Drift issue already open: #${dupe.number} — skipping.`);
+              return;
+            }
+
+            const body = [
+              '## OpenAPI spec drift detected',
+              '',
+              'The live spec at `https://my.rcodezero.at/openapi/rcode0api-v2.json`',
+              'differs from the pinned `tests/fixtures/openapi.json`.',
+              '',
+              summary,
+              '<details><summary>Full diff</summary>',
+              '',
+              '```diff',
+              diff,
+              '```',
+              '</details>',
+              '',
+              '**Action:** update `tests/fixtures/openapi.json`, re-run',
+              '`uv run python scripts/gen_api_coverage.py`, and add/update CLI',
+              'commands for any new endpoints.',
+            ].join('\n');
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo:  context.repo.repo,
+              title,
+              body,
+              labels: ['spec-drift'],
+            });
+            core.info(`Opened drift issue: ${title}`);
+
+      - name: Fail when drift detected
+        if: steps.diff.outputs.drift == 'true'
+        run: |
+          echo "::error::OpenAPI spec has drifted from tests/fixtures/openapi.json — see the opened issue."
+          exit 1
