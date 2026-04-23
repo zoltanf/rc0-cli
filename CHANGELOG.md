@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.3] — 2026-04-23
+
 ### Changed
 - Extracted `_client`, `_render_mutation`, and `_validate_pagination` into a
   shared `src/rc0/commands/_helpers.py` — eliminates copy-paste across all 9
