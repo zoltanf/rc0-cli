@@ -11,12 +11,10 @@ from rc0.client.errors import (
     ServerError,
     ValidationError,
 )
-from rc0.client.http import Client
 
 __all__ = [
     "AuthError",
     "AuthzError",
-    "Client",
     "ConfigError",
     "ConfirmationDeclined",
     "ConflictError",

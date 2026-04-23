@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] — Startup performance
+
+### Fixed
+- `rc0 --help` now responds in ~0.4 s instead of ~12 s when installed via
+  Homebrew. The PyInstaller binary is now built with `--onedir` instead of
+  `--onefile`; the single-file mode extracted ~80 MB of Python libraries into
+  a temp directory on every invocation and macOS XProtect scanned each
+  freshly-extracted file.
+- Output formatters (`rich`, `pyyaml`, csv) are now imported lazily — only
+  loaded when a command actually renders output — reducing Python import time.
+- `httpx` (HTTP client) is no longer imported at startup; it is deferred until
+  a command makes an API call.
+
+### Changed
+- Homebrew formula updated: installs the `rc0/` directory tree to `libexec`
+  and symlinks the launcher into `bin` (required by the `--onedir` layout).
+- Version strings in `pyproject.toml` and `src/rc0/__init__.py` are now kept
+  in sync with the release tag (were frozen at `1.0.0`).
+
 ## [1.0.1] — Post-release fixes
 
 ### Added

@@ -30,7 +30,11 @@ class Rc0 < Formula
   end
 
   def install
-    bin.install "rc0"
+    # rc0/ dir contains the launcher binary and _internal/ (bundled Python libs).
+    # Install the directory tree to libexec and symlink the launcher into bin so
+    # the binary can locate _internal/ via its real path at runtime.
+    libexec.install Dir["*"]
+    bin.install_symlink libexec/"rc0"
   end
 
   test do
