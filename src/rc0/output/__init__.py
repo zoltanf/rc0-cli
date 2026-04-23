@@ -62,21 +62,27 @@ def render(
     match effective:
         case OutputFormat.table:
             from rc0.output import table
+
             return table.render(data, columns=columns, title=title)
         case OutputFormat.json:
             from rc0.output import json_out
+
             return json_out.render(data, compact=compact)
         case OutputFormat.yaml:
             from rc0.output import yaml_out
+
             return yaml_out.render(data)
         case OutputFormat.csv:
             from rc0.output import csv_tsv
+
             return csv_tsv.render(data, columns=columns, delimiter=",")
         case OutputFormat.tsv:
             from rc0.output import csv_tsv
+
             return csv_tsv.render(data, columns=columns, delimiter="\t")
         case OutputFormat.plain:
             from rc0.output import plain
+
             return plain.render(data, columns=columns)
 
 
