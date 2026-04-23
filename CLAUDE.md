@@ -49,7 +49,13 @@ This directory hosts **`rc0`** (PyPI `rc0-cli`), a production-grade Python
 - One feature branch per phase (`phase-N-<slug>`). Merge to `main` via PR.
   Annotated tag at the end of each phase.
 - No merge without green CI (mission plan §14).
-- Every PR updates `CHANGELOG.md` (Keep-a-Changelog format).
+- Every PR updates `CHANGELOG.md` (Keep-a-Changelog format) — add entries
+  under the existing `## [Unreleased]` block only.
+- **Releases go through `scripts/release.sh <version>`.** Fix/feature PRs
+  must NOT bump `pyproject.toml`, `src/rc0/__init__.py`, or add a dated
+  `## [X.Y.Z] — YYYY-MM-DD` heading — the script handles all three, plus
+  the commit, tag, and push that triggers the release workflow. (v1.0.4
+  through v1.0.7 drifted from this; corrected going forward.)
 - Each phase gets its own detailed implementation plan via
   `superpowers:writing-plans` — do **not** treat the meta-plan as the
   execution plan.
