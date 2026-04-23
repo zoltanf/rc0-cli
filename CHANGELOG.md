@@ -22,6 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Release workflow (`release.yml`) now passes on Windows: the two skipped
   auth tests on Windows reduced coverage to 86%, below the old 87% gate.
+- macOS binary is no longer killed on launch: `strip` is now skipped on macOS
+  so PyInstaller's embedded archive and its ad-hoc signature remain intact.
 
 ## [1.0.0] — v1.0.0 Polish
 
