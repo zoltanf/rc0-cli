@@ -74,6 +74,48 @@ def test_zone_exists_not_found(cli: CliRunner, isolated_config: Path) -> None:
 
 
 @respx.mock
+def test_list_challenges_default_fetches_all_pages(cli: CliRunner, isolated_config: Path) -> None:
+    """Default must walk every page for ACME challenges too."""
+    route = respx.get(f"{_BASE_V1}/zones/{_ZONE}/rrsets")
+
+    def _row(i: int) -> dict[str, object]:
+        return {
+            "name": f"_acme-challenge.sub{i}.{_ZONE}.",
+            "type": "TXT",
+            "ttl": 60,
+            "records": [{"content": f"tok{i}", "disabled": False}],
+        }
+
+    route.side_effect = [
+        httpx.Response(
+            200,
+            json={
+                "current_page": 1,
+                "data": [_row(i) for i in range(100)],
+                "last_page": 2,
+                "per_page": 100,
+                "total": 101,
+            },
+        ),
+        httpx.Response(
+            200,
+            json={
+                "current_page": 2,
+                "data": [_row(100)],
+                "last_page": 2,
+                "per_page": 100,
+                "total": 101,
+            },
+        ),
+    ]
+    r = _invoke(cli, "acme", "list-challenges", _ZONE)
+    assert r.exit_code == 0, r.output
+    rows = json.loads(r.output)
+    assert len(rows) == 101
+    assert route.call_count == 2
+
+
+@respx.mock
 def test_list_challenges(cli: CliRunner, isolated_config: Path) -> None:
     respx.get(f"{_BASE_V1}/zones/{_ZONE}/rrsets").mock(
         return_value=httpx.Response(200, json=_CHALLENGE_PAGE)

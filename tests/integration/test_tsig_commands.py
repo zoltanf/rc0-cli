@@ -39,6 +39,67 @@ def test_tsig_list(cli: CliRunner, isolated_config: Path) -> None:
 
 
 @respx.mock
+def test_tsig_list_page_warns_when_full_page_returned(
+    cli: CliRunner, isolated_config: Path
+) -> None:
+    """Bare-array endpoint: a full page at --page N ≥ 2 means "more may exist"."""
+    rows = [{"id": i, "name": f"k{i}", "algorithm": "hmac-sha256", "secret": "s"} for i in range(3)]
+    respx.get(
+        "https://my.rcodezero.at/api/v2/tsig",
+        params={"page": 2, "page_size": 3},
+    ).mock(return_value=httpx.Response(200, json=rows))
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "-o",
+            "json",
+            "tsig",
+            "list",
+            "--page",
+            "2",
+            "--page-size",
+            "3",
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    assert len(json.loads(r.stdout)) == 3
+    stderr = r.stderr or ""
+    assert "page 2 returned a full page" in stderr
+    assert "more rows may exist" in stderr
+
+
+@respx.mock
+def test_tsig_list_page_silent_on_short_page(cli: CliRunner, isolated_config: Path) -> None:
+    """Bare-array endpoint: a short page definitely has no more data → silent."""
+    rows = [
+        {"id": 1, "name": "only", "algorithm": "hmac-sha256", "secret": "s"},
+    ]
+    respx.get(
+        "https://my.rcodezero.at/api/v2/tsig",
+        params={"page": 2, "page_size": 3},
+    ).mock(return_value=httpx.Response(200, json=rows))
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "-o",
+            "json",
+            "tsig",
+            "list",
+            "--page",
+            "2",
+            "--page-size",
+            "3",
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    assert (r.stderr or "") == ""
+
+
+@respx.mock
 def test_tsig_show(cli: CliRunner, isolated_config: Path) -> None:
     respx.get("https://my.rcodezero.at/api/v2/tsig/xfr").mock(
         return_value=httpx.Response(

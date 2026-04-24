@@ -13,7 +13,12 @@ from rc0.api import rrsets as rrsets_api
 from rc0.api import rrsets_write as rrsets_write_api
 from rc0.app_state import AppState  # noqa: TC001
 from rc0.client.errors import ValidationError
-from rc0.commands._helpers import _client, _render_mutation, _validate_pagination
+from rc0.commands._helpers import (
+    _client,
+    _render_mutation,
+    _validate_pagination,
+    _warn_if_truncated,
+)
 from rc0.confirm import confirm_typed, confirm_yes_no
 from rc0.output import OutputFormat, render
 from rc0.output.bind import render_rrsets
@@ -44,37 +49,62 @@ def list_cmd(
     ] = None,
     page: Annotated[
         int | None,
-        typer.Option("--page", min=1, help="1-indexed page number (incompatible with --all)."),
+        typer.Option(
+            "--page",
+            min=1,
+            help="Fetch only this 1-indexed page. Omit to fetch every row.",
+        ),
     ] = None,
     page_size: Annotated[
         int | None,
-        typer.Option("--page-size", min=1, max=1000, help="Rows per page (default 50)."),
+        typer.Option(
+            "--page-size",
+            min=1,
+            max=1000,
+            help="Rows per HTTP request (default 50).",
+        ),
     ] = None,
     fetch_all: Annotated[
         bool,
-        typer.Option("--all", help="Auto-paginate every row."),
+        typer.Option(
+            "--all",
+            help="[kept for compatibility] fetching every row is now the default.",
+        ),
     ] = False,
 ) -> None:
     """List RRsets. API: GET /api/v2/zones/{zone}/rrsets
+
+    Fetches every RRset by default. Use ``--page N`` to retrieve a single
+    page (a stderr warning fires if more rows exist).
 
     Examples:
 
       rc0 record list example.com
       rc0 record list example.com --name www --type A
-      rc0 -o json record list example.com --all
+      rc0 record list example.com --page 2 --page-size 25
     """
     state: AppState = ctx.obj
     _validate_pagination(fetch_all, page)
     with _client(state) as client:
-        rows = rrsets_api.list_rrsets(
-            client,
-            zone,
-            name=name,
-            type=type_,
-            page=page,
-            page_size=page_size,
-            fetch_all=fetch_all,
-        )
+        if page is not None:
+            rows, info = rrsets_api.list_rrsets_page(
+                client,
+                zone,
+                name=name,
+                type=type_,
+                page=page,
+                page_size=page_size,
+            )
+        else:
+            rows = rrsets_api.list_rrsets(
+                client,
+                zone,
+                name=name,
+                type=type_,
+                page_size=page_size,
+                fetch_all=True,
+            )
+            info = None
     typer.echo(
         render(
             [r.model_dump(exclude_none=True) for r in rows],
@@ -82,6 +112,8 @@ def list_cmd(
             columns=["name", "type", "ttl", "records"],
         ),
     )
+    if info is not None:
+        _warn_if_truncated(state, rows, info)
 
 
 @app.command("export")

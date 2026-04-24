@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 from typing import TYPE_CHECKING, Any
 
-from rc0.client.pagination import iter_all, iter_pages
+from rc0.client.pagination import fetch_page, iter_all, iter_pages
 from rc0.models.reports import (
     AccountingRow,
     DomainListRow,
@@ -25,6 +25,7 @@ from rc0.models.reports import (
 
 if TYPE_CHECKING:
     from rc0.client.http import Client
+    from rc0.client.pagination import PageInfo
 
 
 def _resolve_day(day: str | None) -> str | None:
@@ -41,9 +42,9 @@ def list_problematic_zones(
     *,
     page: int | None = None,
     page_size: int | None = None,
-    fetch_all: bool = False,
+    fetch_all: bool = True,
 ) -> list[ProblematicZone]:
-    """Return problematic-zone rows. With ``fetch_all=True`` iterate every page."""
+    """Return problematic-zone rows. Defaults to fetching every page."""
     effective_page_size = page_size or 50
     path = "/api/v2/reports/problematiczones"
     if fetch_all:
@@ -59,6 +60,22 @@ def list_problematic_zones(
     )
     first = next(iter(page_iterator), [])
     return [ProblematicZone.model_validate(row) for row in first]
+
+
+def list_problematic_zones_page(
+    client: Client,
+    *,
+    page: int,
+    page_size: int | None = None,
+) -> tuple[list[ProblematicZone], PageInfo]:
+    """Fetch exactly one page of problematic zones with pagination metadata."""
+    rows, info = fetch_page(
+        client,
+        "/api/v2/reports/problematiczones",
+        page=page,
+        page_size=page_size or 50,
+    )
+    return [ProblematicZone.model_validate(row) for row in rows], info
 
 
 def list_nxdomains(client: Client, *, day: str | None = None) -> list[NxdomainRow]:

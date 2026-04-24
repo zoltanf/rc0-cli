@@ -127,3 +127,32 @@ def test_zone_list_rejects_zero_page_size(cli: CliRunner, isolated_config: Path)
     r = cli.invoke(app, ["--token", "tk", "zone", "list", "--page-size", "0"])
     # Typer/Click usage error for out-of-range value.
     assert r.exit_code == 2, r.stdout
+
+
+@respx.mock
+def test_zone_list_default_fetches_all_pages(cli: CliRunner, isolated_config: Path) -> None:
+    """Default must now walk every page — no silent truncation."""
+    route = respx.get("https://my.rcodezero.at/api/v2/zones")
+    route.side_effect = [
+        httpx.Response(
+            200,
+            json=_envelope(
+                [{"id": i, "domain": f"z{i}.example.", "type": "MASTER"} for i in range(50)],
+                current_page=1,
+                last_page=2,
+            ),
+        ),
+        httpx.Response(
+            200,
+            json=_envelope(
+                [{"id": 99, "domain": "tail.example.", "type": "MASTER"}],
+                current_page=2,
+                last_page=2,
+            ),
+        ),
+    ]
+    r = cli.invoke(app, ["--token", "tk", "-o", "json", "zone", "list"])
+    assert r.exit_code == 0, r.stdout
+    assert len(json.loads(r.stdout)) == 51
+    assert route.call_count == 2
+    assert (r.stderr or "") == ""

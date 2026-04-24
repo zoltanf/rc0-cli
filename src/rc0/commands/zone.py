@@ -10,7 +10,12 @@ import typer
 from rc0.api import zones as zones_api
 from rc0.api import zones_write as zones_write_api
 from rc0.app_state import AppState  # noqa: TC001
-from rc0.commands._helpers import _client, _render_mutation, _validate_pagination
+from rc0.commands._helpers import (
+    _client,
+    _render_mutation,
+    _validate_pagination,
+    _warn_if_truncated,
+)
 from rc0.confirm import confirm_typed
 from rc0.output import render
 
@@ -24,11 +29,20 @@ app = typer.Typer(
 ZoneArg = Annotated[str, typer.Argument(help="Fully-qualified zone apex, e.g. example.com.")]
 PageOpt = Annotated[
     int | None,
-    typer.Option("--page", min=1, help="1-indexed page number (incompatible with --all)."),
+    typer.Option(
+        "--page",
+        min=1,
+        help="Fetch only this 1-indexed page. Omit to fetch every row.",
+    ),
 ]
 PageSizeOpt = Annotated[
     int | None,
-    typer.Option("--page-size", min=1, max=1000, help="Rows per page (default 50)."),
+    typer.Option(
+        "--page-size",
+        min=1,
+        max=1000,
+        help="Rows per HTTP request (default 50).",
+    ),
 ]
 
 
@@ -37,7 +51,13 @@ def list_cmd(
     ctx: typer.Context,
     page: PageOpt = None,
     page_size: PageSizeOpt = None,
-    fetch_all: Annotated[bool, typer.Option("--all", help="Auto-paginate every row.")] = False,
+    fetch_all: Annotated[
+        bool,
+        typer.Option(
+            "--all",
+            help="[kept for compatibility] fetching every row is now the default.",
+        ),
+    ] = False,
 ) -> None:
     """List zones on the account. API: GET /api/v2/zones
 
@@ -45,21 +65,31 @@ def list_cmd(
     last_check (timestamp of last zone check; '-' when the zone has
     never been checked).
 
+    Fetches every zone by default. Use ``--page N`` to retrieve a single
+    page (a stderr warning fires if more rows exist).
+
     Examples:
 
       rc0 zone list
-      rc0 -o json zone list --all
+      rc0 -o json zone list
       rc0 zone list --page 2 --page-size 20
     """
     state: AppState = ctx.obj
     _validate_pagination(fetch_all, page)
     with _client(state) as client:
-        zones = zones_api.list_zones(
-            client,
-            page=page,
-            page_size=page_size,
-            fetch_all=fetch_all,
-        )
+        if page is not None:
+            zones, info = zones_api.list_zones_page(
+                client,
+                page=page,
+                page_size=page_size,
+            )
+        else:
+            zones = zones_api.list_zones(
+                client,
+                page_size=page_size,
+                fetch_all=True,
+            )
+            info = None
     payload = [z.model_dump(exclude_none=True) for z in zones]
     typer.echo(
         render(
@@ -68,6 +98,8 @@ def list_cmd(
             columns=["domain", "type", "serial", "dnssec", "last_check"],
         ),
     )
+    if info is not None:
+        _warn_if_truncated(state, zones, info)
 
 
 @app.command("show")

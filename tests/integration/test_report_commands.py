@@ -51,6 +51,41 @@ def test_problematic_zones_default(cli: CliRunner, isolated_config: Path) -> Non
 
 
 @respx.mock
+def test_problematic_zones_page_warns_on_truncation(cli: CliRunner, isolated_config: Path) -> None:
+    """Explicit --page on a multi-page envelope must warn on stderr."""
+    respx.get("https://my.rcodezero.at/api/v2/reports/problematiczones").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": [{"domain": f"z{i}.example."} for i in range(50)],
+                "current_page": 1,
+                "last_page": 3,
+                "per_page": 50,
+                "total": 120,
+            },
+        ),
+    )
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "-o",
+            "json",
+            "report",
+            "problematic-zones",
+            "--page",
+            "1",
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    assert len(json.loads(r.stdout)) == 50
+    stderr = r.stderr or ""
+    assert "showing page 1 of 3" in stderr
+    assert "50 of 120 rows" in stderr
+
+
+@respx.mock
 def test_problematic_zones_all_auto_pages(cli: CliRunner, isolated_config: Path) -> None:
     route = respx.get("https://my.rcodezero.at/api/v2/reports/problematiczones")
     route.side_effect = [
