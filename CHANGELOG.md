@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `rc0 skill install` and `rc0 skill uninstall` manage the rc0 Claude Code
+  skill. Exactly one of `--project` (installs to `./.claude/skills/rc0/SKILL.md`)
+  or `--global` / `-g` (installs to `~/.claude/skills/rc0/SKILL.md`) is
+  required. The skill body is bundled as a package resource so it travels
+  with both the wheel and the PyInstaller binary. `--dry-run` previews the
+  target path without touching disk; a global `-y` skips overwrite and
+  removal prompts.
+
 ## [1.0.7] — 2026-04-23
 
 ### Added

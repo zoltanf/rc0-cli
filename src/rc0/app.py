@@ -28,6 +28,7 @@ from rc0.commands import messages as messages_cmd
 from rc0.commands import record as record_cmd
 from rc0.commands import report as report_cmd
 from rc0.commands import settings as settings_cmd
+from rc0.commands import skill as skill_cmd
 from rc0.commands import stats as stats_cmd
 from rc0.commands import tsig as tsig_cmd
 from rc0.commands import zone as zone_cmd
@@ -51,6 +52,7 @@ app.add_typer(messages_cmd.app, name="messages", help="Inspect queued account me
 app.add_typer(record_cmd.app, name="record", help="Manage RRsets.")
 app.add_typer(report_cmd.app, name="report", help="Account-level reports.")
 app.add_typer(settings_cmd.app, name="settings", help="Manage account-level settings.")
+app.add_typer(skill_cmd.app, name="skill", help="Manage the rc0 Claude Code skill.")
 app.add_typer(stats_cmd.app, name="stats", help="Account statistics.")
 app.add_typer(tsig_cmd.app, name="tsig", help="Manage TSIG keys.")
 app.add_typer(zone_cmd.app, name="zone", help="Manage RcodeZero zones.")

@@ -49,6 +49,7 @@ packages = ["src/rc0"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "src/rc0/topics" = "rc0/topics"
+"src/rc0/skill" = "rc0/skill"
 
 [dependency-groups]
 pyinstaller = ["pyinstaller>=6.0"]

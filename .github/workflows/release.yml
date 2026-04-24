@@ -58,10 +58,12 @@ jobs:
           if [ "${{ runner.os }}" = "Windows" ]; then
             uv run pyinstaller --onefile --name rc0 --noupx \
               --add-data "src/rc0/topics;rc0/topics" \
+              --add-data "src/rc0/skill;rc0/skill" \
               src/rc0/__main__.py
           else
             uv run pyinstaller --onedir --name rc0 --noupx \
               --add-data "src/rc0/topics:rc0/topics" \
+              --add-data "src/rc0/skill:rc0/skill" \
               src/rc0/__main__.py
           fi
       - name: Strip symbols (Linux only)
@@ -80,6 +82,17 @@ jobs:
           grep -q '^authentication$' /tmp/rc0_topics.out
           grep -q '^pagination$'     /tmp/rc0_topics.out
           grep -q '^output-formats$' /tmp/rc0_topics.out
+      - name: Smoke-test bundled skill
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            BIN="dist/rc0.exe"
+          else
+            BIN="dist/rc0/rc0"
+          fi
+          # --dry-run still reads the bundled resource; failure here means
+          # the packaged binary can't see src/rc0/skill/SKILL.md.
+          "$BIN" --dry-run skill install --project | grep -q 'would write'
       - name: Package and checksum
         id: pkg
         shell: bash
