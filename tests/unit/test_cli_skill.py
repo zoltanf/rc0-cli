@@ -16,7 +16,10 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def cli() -> CliRunner:
-    return CliRunner()
+    # Pin terminal env so Rich renders error panels as plain text with a
+    # predictable width; otherwise CI (FORCE_COLOR=1) injects ANSI escapes
+    # that split flag names across sequences and break substring asserts.
+    return CliRunner(env={"COLUMNS": "200", "NO_COLOR": "1", "TERM": "dumb"})
 
 
 @pytest.fixture
@@ -27,6 +30,9 @@ def scoped_fs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     home.mkdir()
     cwd.mkdir()
     monkeypatch.setenv("HOME", str(home))
+    # Windows' Path.home() consults USERPROFILE before HOME — patch both so
+    # `--global` targets the sandbox on every platform.
+    monkeypatch.setenv("USERPROFILE", str(home))
     monkeypatch.chdir(cwd)
     # Prevent the keyring fixture or real credentials from leaking in.
     monkeypatch.delenv("RC0_API_TOKEN", raising=False)

@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `tests/unit/test_cli_skill.py::test_install_requires_scope_flag` failed on
+  CI because the runner's `FORCE_COLOR=1` environment caused Rich to render
+  the `BadParameter` error panel with ANSI escape sequences that split flag
+  names (`--project`, `--global`) across styling, breaking the substring
+  assertion. The `cli` fixture now pins `COLUMNS`, `NO_COLOR`, and `TERM` so
+  the panel always renders as plain text at a wide, predictable width.
+- `tests/unit/test_cli_skill.py` skill-install tests failed on Windows CI
+  because `Path.home()` on Windows consults `USERPROFILE` before `HOME` —
+  the `scoped_fs` fixture only patched `HOME`, so `--global` escaped the
+  sandbox and wrote to (or collided with) the runner's real home directory.
+  The fixture now patches `USERPROFILE` as well.
+
 ## [1.0.8] — 2026-04-24
 
 ### Added

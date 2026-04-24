@@ -667,7 +667,7 @@ wheels = [
 
 [[package]]
 name = "rc0-cli"
-version = "1.0.7"
+version = "1.0.8"
 source = { editable = "." }
 dependencies = [
     { name = "dnspython" },
