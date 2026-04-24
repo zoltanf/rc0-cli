@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-04-24
+
 ### Changed
 - List commands (`zone list`, `record list`, `tsig list`, `messages list`,
   `report problematic-zones`, `acme list-challenges`) now fetch all pages by
