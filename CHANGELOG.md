@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.8] — 2026-04-24
+
 ### Added
 - `rc0 skill install` and `rc0 skill uninstall` manage the rc0 Claude Code
   skill. Exactly one of `--project` (installs to `./.claude/skills/rc0/SKILL.md`)
