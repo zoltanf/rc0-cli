@@ -30,6 +30,9 @@ def scoped_fs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     home.mkdir()
     cwd.mkdir()
     monkeypatch.setenv("HOME", str(home))
+    # Windows' Path.home() consults USERPROFILE before HOME — patch both so
+    # `--global` targets the sandbox on every platform.
+    monkeypatch.setenv("USERPROFILE", str(home))
     monkeypatch.chdir(cwd)
     # Prevent the keyring fixture or real credentials from leaking in.
     monkeypatch.delenv("RC0_API_TOKEN", raising=False)
