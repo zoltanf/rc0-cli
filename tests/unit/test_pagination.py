@@ -8,7 +8,7 @@ import respx
 
 from rc0.client.errors import ServerError
 from rc0.client.http import Client
-from rc0.client.pagination import iter_all, iter_pages
+from rc0.client.pagination import PageInfo, fetch_page, iter_all, iter_pages
 
 # ------------------------------------------------------------------ bare array
 
@@ -178,3 +178,106 @@ def test_iter_pages_params_cannot_override_pagination() -> None:
             ),
         )
     assert route.called
+
+
+# ------------------------------------------------------------------ fetch_page
+
+
+@respx.mock
+def test_fetch_page_envelope_returns_page_info() -> None:
+    route = respx.get(
+        "https://api.test/api/v2/zones",
+        params={"page": 1, "page_size": 50},
+    )
+    route.mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": [{"domain": f"z{i}."} for i in range(50)],
+                "current_page": 1,
+                "last_page": 3,
+                "per_page": 50,
+                "total": 137,
+            },
+        ),
+    )
+    with Client(api_url="https://api.test", token="tk") as c:
+        rows, info = fetch_page(c, "/api/v2/zones", page=1, page_size=50)
+    assert len(rows) == 50
+    assert info == PageInfo(
+        current_page=1,
+        last_page=3,
+        per_page=50,
+        total=137,
+        is_envelope=True,
+    )
+    assert route.call_count == 1
+
+
+@respx.mock
+def test_fetch_page_bare_array_returns_unknown_totals() -> None:
+    route = respx.get(
+        "https://api.test/api/v2/tsig",
+        params={"page": 2, "page_size": 50},
+    )
+    route.mock(
+        return_value=httpx.Response(200, json=[{"name": f"k{i}"} for i in range(50)]),
+    )
+    with Client(api_url="https://api.test", token="tk") as c:
+        rows, info = fetch_page(c, "/api/v2/tsig", page=2, page_size=50)
+    assert len(rows) == 50
+    assert info.is_envelope is False
+    assert info.current_page == 2
+    assert info.last_page is None
+    assert info.total is None
+    assert info.per_page == 50
+
+
+@respx.mock
+def test_fetch_page_envelope_missing_total_is_none() -> None:
+    respx.get(
+        "https://api.test/api/v2/zones",
+        params={"page": 1, "page_size": 50},
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "data": [{"domain": "z."}],
+                "current_page": 1,
+                "last_page": 1,
+                "per_page": 50,
+            },
+        ),
+    )
+    with Client(api_url="https://api.test", token="tk") as c:
+        _, info = fetch_page(c, "/api/v2/zones", page=1, page_size=50)
+    assert info.total is None
+    assert info.last_page == 1
+
+
+def test_fetch_page_rejects_zero_page_size() -> None:
+    with (
+        Client(api_url="https://api.test", token="tk") as c,
+        pytest.raises(ValueError, match="page_size"),
+    ):
+        fetch_page(c, "/api/v2/zones", page=1, page_size=0)
+
+
+def test_fetch_page_rejects_zero_page() -> None:
+    with (
+        Client(api_url="https://api.test", token="tk") as c,
+        pytest.raises(ValueError, match="page must be positive"),
+    ):
+        fetch_page(c, "/api/v2/zones", page=0, page_size=50)
+
+
+@respx.mock
+def test_fetch_page_raises_server_error_on_unexpected_shape() -> None:
+    respx.get("https://api.test/api/v2/zones").mock(
+        return_value=httpx.Response(200, json={"unexpected": "nope"}),
+    )
+    with (
+        Client(api_url="https://api.test", token="tk") as c,
+        pytest.raises(ServerError),
+    ):
+        fetch_page(c, "/api/v2/zones", page=1, page_size=50)

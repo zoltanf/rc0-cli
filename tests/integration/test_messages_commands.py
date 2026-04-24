@@ -68,6 +68,52 @@ def test_messages_poll_empty(cli: CliRunner, isolated_config: Path) -> None:
 
 
 @respx.mock
+def test_messages_list_default_fetches_all_pages(cli: CliRunner, isolated_config: Path) -> None:
+    """Default walks every page for messages list — no silent truncation."""
+    route = respx.get("https://my.rcodezero.at/api/v2/messages/list")
+    route.side_effect = [
+        httpx.Response(
+            200,
+            json=_envelope(
+                [
+                    {
+                        "id": i,
+                        "domain": f"z{i}.example.",
+                        "date": "2026-04-20T00:00:00Z",
+                        "type": "DSSEEN",
+                        "comment": "m",
+                    }
+                    for i in range(50)
+                ],
+                current_page=1,
+                last_page=2,
+            ),
+        ),
+        httpx.Response(
+            200,
+            json=_envelope(
+                [
+                    {
+                        "id": 99,
+                        "domain": "tail.example.",
+                        "date": "2026-04-21T00:00:00Z",
+                        "type": "DSSEEN",
+                        "comment": "tail",
+                    },
+                ],
+                current_page=2,
+                last_page=2,
+            ),
+        ),
+    ]
+    r = cli.invoke(app, ["--token", "tk", "-o", "json", "messages", "list"])
+    assert r.exit_code == 0, r.stdout
+    assert len(json.loads(r.stdout)) == 51
+    assert route.call_count == 2
+    assert (r.stderr or "") == ""
+
+
+@respx.mock
 def test_messages_list_pages(cli: CliRunner, isolated_config: Path) -> None:
     respx.get("https://my.rcodezero.at/api/v2/messages/list").mock(
         return_value=httpx.Response(

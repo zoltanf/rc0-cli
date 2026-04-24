@@ -11,7 +11,12 @@ from rc0.api import tsig as tsig_api
 from rc0.api import tsig_write as tsig_write_api
 from rc0.app_state import AppState  # noqa: TC001
 from rc0.commands._deprecated import deprecated_warn
-from rc0.commands._helpers import _client, _render_mutation, _validate_pagination
+from rc0.commands._helpers import (
+    _client,
+    _render_mutation,
+    _validate_pagination,
+    _warn_if_truncated,
+)
 from rc0.confirm import confirm_yes_no
 from rc0.output import render
 
@@ -20,11 +25,20 @@ app = typer.Typer(name="tsig", help="Manage TSIG keys.", no_args_is_help=True)
 NameArg = Annotated[str, typer.Argument(help="TSIG key name.")]
 PageOpt = Annotated[
     int | None,
-    typer.Option("--page", min=1, help="1-indexed page number (incompatible with --all)."),
+    typer.Option(
+        "--page",
+        min=1,
+        help="Fetch only this 1-indexed page. Omit to fetch every row.",
+    ),
 ]
 PageSizeOpt = Annotated[
     int | None,
-    typer.Option("--page-size", min=1, max=1000, help="Rows per page (default 50)."),
+    typer.Option(
+        "--page-size",
+        min=1,
+        max=1000,
+        help="Rows per HTTP request (default 50).",
+    ),
 ]
 
 
@@ -33,9 +47,17 @@ def list_cmd(
     ctx: typer.Context,
     page: PageOpt = None,
     page_size: PageSizeOpt = None,
-    fetch_all: Annotated[bool, typer.Option("--all", help="Auto-paginate every row.")] = False,
+    fetch_all: Annotated[
+        bool,
+        typer.Option(
+            "--all",
+            help="[kept for compatibility] fetching every row is now the default.",
+        ),
+    ] = False,
 ) -> None:
     """List TSIG keys. API: GET /api/v2/tsig
+
+    Fetches every key by default. Use ``--page N`` for a single page.
 
     Examples:
 
@@ -45,12 +67,19 @@ def list_cmd(
     state: AppState = ctx.obj
     _validate_pagination(fetch_all, page)
     with _client(state) as client:
-        keys = tsig_api.list_tsig(
-            client,
-            page=page,
-            page_size=page_size,
-            fetch_all=fetch_all,
-        )
+        if page is not None:
+            keys, info = tsig_api.list_tsig_page(
+                client,
+                page=page,
+                page_size=page_size,
+            )
+        else:
+            keys = tsig_api.list_tsig(
+                client,
+                page_size=page_size,
+                fetch_all=True,
+            )
+            info = None
     typer.echo(
         render(
             [k.model_dump(exclude_none=True) for k in keys],
@@ -58,6 +87,8 @@ def list_cmd(
             columns=["name", "algorithm", "id"],
         ),
     )
+    if info is not None:
+        _warn_if_truncated(state, keys, info)
 
 
 @app.command("show")

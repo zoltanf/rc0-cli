@@ -9,7 +9,12 @@ import typer
 from rc0.api import messages as messages_api
 from rc0.api import messages_write as messages_write_api
 from rc0.app_state import AppState  # noqa: TC001
-from rc0.commands._helpers import _client, _render_mutation, _validate_pagination
+from rc0.commands._helpers import (
+    _client,
+    _render_mutation,
+    _validate_pagination,
+    _warn_if_truncated,
+)
 from rc0.confirm import confirm_yes_no
 from rc0.output import render
 
@@ -22,11 +27,20 @@ app = typer.Typer(
 
 PageOpt = Annotated[
     int | None,
-    typer.Option("--page", min=1, help="1-indexed page number (incompatible with --all)."),
+    typer.Option(
+        "--page",
+        min=1,
+        help="Fetch only this 1-indexed page. Omit to fetch every row.",
+    ),
 ]
 PageSizeOpt = Annotated[
     int | None,
-    typer.Option("--page-size", min=1, max=1000, help="Rows per page (default 50)."),
+    typer.Option(
+        "--page-size",
+        min=1,
+        max=1000,
+        help="Rows per HTTP request (default 50).",
+    ),
 ]
 
 
@@ -45,24 +59,39 @@ def list_cmd(
     ctx: typer.Context,
     page: PageOpt = None,
     page_size: PageSizeOpt = None,
-    fetch_all: Annotated[bool, typer.Option("--all", help="Auto-paginate every row.")] = False,
+    fetch_all: Annotated[
+        bool,
+        typer.Option(
+            "--all",
+            help="[kept for compatibility] fetching every row is now the default.",
+        ),
+    ] = False,
 ) -> None:
     """List queued messages. API: GET /api/v2/messages/list
+
+    Fetches every queued message by default. Use ``--page N`` for a single page.
 
     Examples:
 
       rc0 messages list
-      rc0 -o json messages list --all
+      rc0 -o json messages list
     """
     state: AppState = ctx.obj
     _validate_pagination(fetch_all, page)
     with _client(state) as client:
-        msgs = messages_api.list_messages(
-            client,
-            page=page,
-            page_size=page_size,
-            fetch_all=fetch_all,
-        )
+        if page is not None:
+            msgs, info = messages_api.list_messages_page(
+                client,
+                page=page,
+                page_size=page_size,
+            )
+        else:
+            msgs = messages_api.list_messages(
+                client,
+                page_size=page_size,
+                fetch_all=True,
+            )
+            info = None
     typer.echo(
         render(
             [m.model_dump(exclude_none=True) for m in msgs],
@@ -70,6 +99,8 @@ def list_cmd(
             columns=["id", "domain", "date", "type", "comment"],
         ),
     )
+    if info is not None:
+        _warn_if_truncated(state, msgs, info)
 
 
 MessageIdArg = Annotated[int, typer.Argument(help="Message ID to acknowledge.")]

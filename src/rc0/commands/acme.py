@@ -11,7 +11,12 @@ from rc0.api import acme as acme_api
 from rc0.api import acme_write
 from rc0.app_state import AppState  # noqa: TC001
 from rc0.client.errors import AuthzError
-from rc0.commands._helpers import _client, _render_mutation
+from rc0.commands._helpers import (
+    _client,
+    _render_mutation,
+    _validate_pagination,
+    _warn_if_truncated,
+)
 from rc0.confirm import confirm_yes_no
 from rc0.output import render
 
@@ -68,15 +73,32 @@ def list_challenges_cmd(
     zone: ZoneArg,
     page: Annotated[
         int | None,
-        typer.Option("--page", min=1, help="1-indexed page number (incompatible with --all)."),
+        typer.Option(
+            "--page",
+            min=1,
+            help="Fetch only this 1-indexed page. Omit to fetch every row.",
+        ),
     ] = None,
     page_size: Annotated[
         int | None,
-        typer.Option("--page-size", min=1, max=10000, help="Rows per page (default 100)."),
+        typer.Option(
+            "--page-size",
+            min=1,
+            max=10000,
+            help="Rows per HTTP request (default 100).",
+        ),
     ] = None,
-    fetch_all: Annotated[bool, typer.Option("--all", help="Auto-paginate every page.")] = False,
+    fetch_all: Annotated[
+        bool,
+        typer.Option(
+            "--all",
+            help="[kept for compatibility] fetching every row is now the default.",
+        ),
+    ] = False,
 ) -> None:
     """List ACME challenge TXT records for a zone. API: GET /api/v1/acme/zones/{zone}/rrsets
+
+    Fetches every record by default. Use ``--page N`` for a single page.
 
     Examples:
 
@@ -84,15 +106,26 @@ def list_challenges_cmd(
       rc0 -o json acme list-challenges example.com
     """
     state: AppState = ctx.obj
+    _validate_pagination(fetch_all, page)
     with _acme_client(state) as client:
-        records = acme_api.list_challenges(
-            client,
-            zone,
-            page=page,
-            page_size=page_size,
-            fetch_all=fetch_all,
-        )
+        if page is not None:
+            records, info = acme_api.list_challenges_page(
+                client,
+                zone,
+                page=page,
+                page_size=page_size,
+            )
+        else:
+            records = acme_api.list_challenges(
+                client,
+                zone,
+                page_size=page_size,
+                fetch_all=True,
+            )
+            info = None
     typer.echo(render(records, fmt=state.effective_output))
+    if info is not None:
+        _warn_if_truncated(state, records, info)
 
 
 @app.command("add-challenge")

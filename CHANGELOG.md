@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- List commands (`zone list`, `record list`, `tsig list`, `messages list`,
+  `report problematic-zones`, `acme list-challenges`) now fetch all pages by
+  default. Previously they silently truncated at 50 rows (100 for ACME) with
+  no indication that more results existed, causing an operational incident
+  where records were declared absent because they had been paginated off the
+  first page. `--all` remains accepted for script compatibility. `--page N`
+  still selects a single page and now prints a stderr warning when more rows
+  exist; pass `-q` / `--quiet` to suppress it.
+
 ### Fixed
 - `tests/unit/test_cli_skill.py::test_install_requires_scope_flag` failed on
   CI because the runner's `FORCE_COLOR=1` environment caused Rich to render

@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from rc0.client.pagination import iter_all, iter_pages
+from rc0.client.pagination import fetch_page, iter_all, iter_pages
 from rc0.models.tsig import TsigKey
 
 if TYPE_CHECKING:
     from rc0.client.http import Client
+    from rc0.client.pagination import PageInfo
 
 
 def list_tsig(
@@ -16,9 +17,9 @@ def list_tsig(
     *,
     page: int | None = None,
     page_size: int | None = None,
-    fetch_all: bool = False,
+    fetch_all: bool = True,
 ) -> list[TsigKey]:
-    """GET /api/v2/tsig — bare array."""
+    """GET /api/v2/tsig — bare array. Defaults to fetching every page."""
     effective_page_size = page_size or 50
     if fetch_all:
         rows = list(iter_all(client, "/api/v2/tsig", page_size=effective_page_size))
@@ -31,6 +32,22 @@ def list_tsig(
         )
         rows = next(iter(page_iterator), [])
     return [TsigKey.model_validate(r) for r in rows]
+
+
+def list_tsig_page(
+    client: Client,
+    *,
+    page: int,
+    page_size: int | None = None,
+) -> tuple[list[TsigKey], PageInfo]:
+    """Fetch exactly one page of TSIG keys with pagination metadata."""
+    rows, info = fetch_page(
+        client,
+        "/api/v2/tsig",
+        page=page,
+        page_size=page_size or 50,
+    )
+    return [TsigKey.model_validate(r) for r in rows], info
 
 
 def show_tsig(client: Client, name: str) -> TsigKey:
