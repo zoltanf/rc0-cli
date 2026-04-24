@@ -16,7 +16,10 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def cli() -> CliRunner:
-    return CliRunner()
+    # Pin terminal env so Rich renders error panels as plain text with a
+    # predictable width; otherwise CI (FORCE_COLOR=1) injects ANSI escapes
+    # that split flag names across sequences and break substring asserts.
+    return CliRunner(env={"COLUMNS": "200", "NO_COLOR": "1", "TERM": "dumb"})
 
 
 @pytest.fixture
