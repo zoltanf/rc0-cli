@@ -18,7 +18,7 @@ jobs:
       matrix:
         os: [ubuntu-24.04, ubuntu-24.04-arm, macos-14, windows-2025]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
@@ -45,7 +45,7 @@ jobs:
           - os: windows-2025
             artifact_name: rc0-windows-x86_64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@v7
         with:
           enable-cache: true
@@ -135,7 +135,7 @@ jobs:
     needs: [build-binary]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Download all binary artifacts
         uses: actions/download-artifact@v4
         with:
@@ -159,7 +159,7 @@ jobs:
     needs: [github-release]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Download SHA256SUMS from release
         run: |
