@@ -204,6 +204,76 @@ def test_record_list_with_filters(cli: CliRunner, isolated_config: Path) -> None
 
 
 @respx.mock
+def test_record_list_apex_name_filter(cli: CliRunner, isolated_config: Path) -> None:
+    """`--name @` must resolve to the zone apex FQDN before hitting the API."""
+    route = respx.get(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+        params={"names": "example.com.", "types": "TXT", "page": 1, "page_size": 50},
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            json=_envelope(
+                [
+                    {
+                        "name": "example.com.",
+                        "type": "TXT",
+                        "ttl": 3600,
+                        "records": [
+                            {"content": '"v=spf1 -all"', "disabled": False},
+                        ],
+                    },
+                ],
+            ),
+        ),
+    )
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "-o",
+            "json",
+            "record",
+            "list",
+            "example.com",
+            "--name",
+            "@",
+            "--type",
+            "TXT",
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    assert route.called
+    rows = json.loads(r.stdout)
+    assert rows[0]["name"] == "example.com."
+
+
+@respx.mock
+def test_record_list_short_name_qualified(cli: CliRunner, isolated_config: Path) -> None:
+    """A bare label like `www` must be auto-qualified to `www.example.com.`."""
+    route = respx.get(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+        params={"names": "www.example.com.", "page": 1, "page_size": 50},
+    ).mock(return_value=httpx.Response(200, json=_envelope([])))
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "-o",
+            "json",
+            "record",
+            "list",
+            "example.com",
+            "--name",
+            "www",
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    assert route.called
+
+
+@respx.mock
 def test_record_export_bind(cli: CliRunner, isolated_config: Path) -> None:
     respx.get("https://my.rcodezero.at/api/v2/zones/example.com/rrsets").mock(
         return_value=httpx.Response(
@@ -237,6 +307,46 @@ def test_record_export_bind(cli: CliRunner, isolated_config: Path) -> None:
     assert r.exit_code == 0, r.stdout
     assert "$ORIGIN example.com." in r.stdout
     assert "10.0.0.1" in r.stdout
+
+
+@respx.mock
+def test_record_export_bind_with_long_dkim(cli: CliRunner, isolated_config: Path) -> None:
+    """Regression: 2048-bit DKIM TXT records must not crash the BIND exporter."""
+    long_dkim = "v=DKIM1; k=rsa; p=" + "B" * 600
+    respx.get("https://my.rcodezero.at/api/v2/zones/bonsy.com/rrsets").mock(
+        return_value=httpx.Response(
+            200,
+            json=_envelope(
+                [
+                    {
+                        "name": "google._domainkey.bonsy.com.",
+                        "type": "TXT",
+                        "ttl": 3600,
+                        "records": [{"content": f'"{long_dkim}"', "disabled": False}],
+                    },
+                ]
+            ),
+        ),
+    )
+    r = cli.invoke(app, ["--token", "tk", "record", "export", "bonsy.com"])
+    assert r.exit_code == 0, r.stdout
+    assert "google._domainkey" in r.stdout
+
+
+def test_record_add_help_warns_about_replacement(cli: CliRunner) -> None:
+    """`record add --help` must clarify that the command sets the full RRset."""
+    r = cli.invoke(app, ["record", "add", "--help"])
+    assert r.exit_code == 0
+    assert "fails if one already exists" in r.stdout
+    assert "atomic" in r.stdout
+
+
+def test_record_update_help_explains_preserve_pattern(cli: CliRunner) -> None:
+    """`record update --help` must tell users to pass existing --content to preserve them."""
+    r = cli.invoke(app, ["record", "update", "--help"])
+    assert r.exit_code == 0
+    assert "fails if no RRset exists" in r.stdout
+    assert "pass them again" in r.stdout
 
 
 @respx.mock

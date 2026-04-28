@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `record export -f bind` no longer crashes with `SyntaxError: string too long`
+  on TXT/SPF records whose content exceeds 255 bytes (e.g. 2048-bit DKIM
+  public keys). The renderer now splits long content into RFC 1035 §3.3.14
+  ≤255-byte character-strings before constructing the rdata, so multi-string
+  TXT round-trips cleanly. A single broken record is now reported on stderr
+  and skipped rather than aborting the whole export.
+- `record list --name @` and `record list --name <short-label>` now resolve
+  to the zone apex / FQDN before hitting the API. Previously the literal
+  string was sent and the API silently returned zero rows, masking apex TXT
+  and MX records during audits.
+
+### Changed
+- `record add` and `record update` help text now spells out that both
+  commands replace the full RRset atomically and clarifies the
+  pre-existence rule that distinguishes them (`add` rejects when the RRset
+  already exists; `update` rejects when it doesn't). The shared `--content`
+  help also notes that values together replace the RRset, so existing
+  records must be repeated to preserve them.
+
 ## [1.1.0] — 2026-04-24
 
 ### Changed

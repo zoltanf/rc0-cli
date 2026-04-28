@@ -41,7 +41,11 @@ def list_cmd(
     zone: ZoneArg,
     name: Annotated[
         str | None,
-        typer.Option("--name", help="Filter by RR name."),
+        typer.Option(
+            "--name",
+            help="Filter by RR name. Accepts @ for the apex, short labels "
+            "(auto-qualified to FQDN), or absolute names with a trailing dot.",
+        ),
     ] = None,
     type_: Annotated[
         str | None,
@@ -85,12 +89,17 @@ def list_cmd(
     """
     state: AppState = ctx.obj
     _validate_pagination(fetch_all, page)
+    qualified_name: str | None = None
+    if name is not None:
+        qualified_name, rewritten = rrsets_validate.qualify_name(name, zone=zone)
+        if rewritten and state.verbose >= 1:
+            _warn(state)(f"auto-qualified --name {name!r} → {qualified_name!r}")
     with _client(state) as client:
         if page is not None:
             rows, info = rrsets_api.list_rrsets_page(
                 client,
                 zone,
-                name=name,
+                name=qualified_name,
                 type=type_,
                 page=page,
                 page_size=page_size,
@@ -99,7 +108,7 @@ def list_cmd(
             rows = rrsets_api.list_rrsets(
                 client,
                 zone,
-                name=name,
+                name=qualified_name,
                 type=type_,
                 page_size=page_size,
                 fetch_all=True,
@@ -173,7 +182,9 @@ ContentOpt = Annotated[
     typer.Option(
         "--content",
         help="Record content. Repeat to aggregate into one RRset (A/AAAA/TXT/…); "
-        "for MX, use `--content '10 mail.example.com.'`.",
+        "for MX, use `--content '10 mail.example.com.'`. All --content values "
+        "together replace the RRset — to preserve existing records, pass them "
+        "again as additional --content values.",
     ),
 ]
 DisabledOpt = Annotated[
@@ -220,7 +231,14 @@ def add_cmd(
     ttl: TtlOpt = 3600,
     disabled: DisabledOpt = False,
 ) -> None:
-    """Add a single RRset. API: PATCH /api/v2/zones/{zone}/rrsets
+    """Add a single RRset (fails if one already exists at this name+type).
+
+    API: PATCH /api/v2/zones/{zone}/rrsets (changetype=add)
+
+    Sets the full record list for this name+type — the API treats an RRset as
+    one atomic unit. To grow an existing RRset (e.g. add another TXT to the
+    same label) or to wipe-and-replace it, use `record update` and pass every
+    desired --content value, including the ones you want to preserve.
 
     Examples:
 
@@ -265,7 +283,14 @@ def update_cmd(
     ttl: TtlOpt = 3600,
     disabled: DisabledOpt = False,
 ) -> None:
-    """Replace an RRset's records. API: PATCH /api/v2/zones/{zone}/rrsets
+    """Replace an RRset's records (fails if no RRset exists at this name+type).
+
+    API: PATCH /api/v2/zones/{zone}/rrsets (changetype=update)
+
+    Sets the full record list for this name+type, replacing atomically. To
+    preserve existing records you must pass them again as additional --content
+    values; anything not in --content is removed. Use `record add` instead
+    when no RRset exists yet.
 
     Examples:
 
