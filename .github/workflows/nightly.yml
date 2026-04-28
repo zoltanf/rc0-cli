@@ -75,7 +75,7 @@ jobs:
 
       - name: Open GitHub Issue on drift
         if: steps.diff.outputs.drift == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
