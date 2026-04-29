@@ -28,7 +28,10 @@ def _envelope(rows, *, current_page=1, last_page=1):
 
 @pytest.fixture
 def cli() -> CliRunner:
-    return CliRunner()
+    # Pin terminal env so Rich renders --help panels as plain text with a
+    # predictable width; otherwise CI (FORCE_COLOR=1) injects ANSI escapes
+    # that split flag names across sequences and break substring asserts.
+    return CliRunner(env={"COLUMNS": "200", "NO_COLOR": "1", "TERM": "dumb"})
 
 
 @respx.mock

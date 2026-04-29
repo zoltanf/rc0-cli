@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `tests/integration/test_record_commands.py` help-text smoke tests
+  (`test_record_set_help_documents_upsert_semantics`,
+  `test_record_import_help_present`) failed on the macOS release runner
+  because the `cli` fixture did not neutralise CI's `FORCE_COLOR=1`, so
+  Rich split flag names like `--require-absent` and `--zone-file` across
+  ANSI escape sequences and broke substring assertions. The fixture now
+  pins `COLUMNS=200`, `NO_COLOR=1`, and `TERM=dumb` — same fix the v1.1.0
+  CHANGELOG documented for `tests/unit/test_cli_skill.py`. This was the
+  blocker for the v2.0.0 release workflow.
+
 ## [2.0.0] — 2026-04-29
 
 ### Fixed
