@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-04-29
+
 ### Fixed
 - `record export -f bind` no longer crashes with `SyntaxError: string too long`
   on TXT/SPF records whose content exceeds 255 bytes (e.g. 2048-bit DKIM
