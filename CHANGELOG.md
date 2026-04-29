@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.1] — 2026-04-29
+
 ### Fixed
 - `tests/integration/test_record_commands.py` help-text smoke tests
   (`test_record_set_help_documents_upsert_semantics`,
