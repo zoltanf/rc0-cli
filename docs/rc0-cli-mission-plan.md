@@ -84,8 +84,8 @@ The CLI must expose **all** of the following. Endpoints marked `[DEPRECATED]` ar
 | `/api/v2/zones/{zone}` | PATCH | `rc0 zone enable` / `rc0 zone disable` |
 | `/api/v2/zones/{zone}` | DELETE | `rc0 zone delete` |
 | `/api/v2/zones/{zone}/rrsets` | GET | `rc0 record list` |
-| `/api/v2/zones/{zone}/rrsets` | PATCH | `rc0 record add` / `update` / `delete` / `apply` |
-| `/api/v2/zones/{zone}/rrsets` | PUT | `rc0 record replace-all` |
+| `/api/v2/zones/{zone}/rrsets` | PATCH | `rc0 record set` / `append` / `delete` / `apply` |
+| `/api/v2/zones/{zone}/rrsets` | PUT | `rc0 record import` |
 | `/api/v2/zones/{zone}/rrsets` | DELETE | `rc0 record clear` |
 | `/api/v2/zones/{zone}/retrieve` | POST | `rc0 zone retrieve` |
 | `/api/v2/zones/{zone}/outbound` | GET/POST/DELETE | `rc0 zone xfr-out show/set/unset` |
@@ -330,7 +330,7 @@ The `POST /api/v2/zones?test=1` endpoint is different: it's a server-side valida
 - `rc0 zone delete`
 - `rc0 record delete` (except single-label deletes with `--force-no-confirm` internal flag for agents? — **no**, keep it always, agents use `-y`)
 - `rc0 record clear`
-- `rc0 record replace-all`
+- `rc0 record import`
 - `rc0 record apply`
 - `rc0 dnssec unsign` (double-confirm with `--force`)
 - `rc0 dnssec keyrollover`
@@ -517,16 +517,28 @@ Human mode: render the above as a red-bordered panel. Include the `hint` promine
 
 RRset commands must accept input in three forms; choose whichever the user provides.
 
-### 1. Flag-based (quick adds)
+### 1. Flag-based (quick set/append/delete)
 
 ```bash
-rc0 record add example.com \
+# Upsert (default) — works whether the RRset exists or not.
+rc0 record set example.com \
   --name www --type A --ttl 3600 \
   --content 10.0.0.1 --content 10.0.0.2
+
+# Strict create-only:
+rc0 record set example.com --name www --type A --content 10.0.0.1 --require-absent
+
+# Strict replace-only:
+rc0 record set example.com --name www --type A --content 10.0.0.9 --require-exists
+
+# Non-destructive grow (fetch existing → dedupe → PATCH merged set):
+rc0 record append example.com --name @ --type MX --content '20 backup-mail.example.com.'
 ```
 
-- `--name` may be relative (`www`) or absolute (`www.example.com.`). Relative is auto-qualified.
+- `--name` may be `@` (apex), a leaf label (`www`), or absolute (`www.example.com.`). Relative names are auto-qualified.
 - Multiple `--content` aggregate into one RRset (per API rule: a full RRset must be supplied together).
+- `record set` maps to `changetype=update` by default; `--require-absent` flips to `changetype=add`.
+- `record append` issues a GET first so the merged record list survives the PATCH.
 
 ### 2. JSON / YAML file (`--from-file`)
 
@@ -549,10 +561,11 @@ File format mirrors the API request body:
   changetype: delete
 ```
 
-### 3. BIND zone file (`--zone-file`) for `record replace-all` and `record export`
+### 3. BIND zone file (`--zone-file`) for `record import` and `record export`
 
 - `export` can emit BIND-format with `-o bind` (non-standard output type, but recognised).
-- `replace-all --zone-file ./example.com.zone` parses and submits. Use [`dnspython`](https://pypi.org/project/dnspython/) for parsing — do not roll your own.
+- `import --zone-file ./example.com.zone` parses and submits. Use [`dnspython`](https://pypi.org/project/dnspython/) for parsing — do not roll your own.
+- `export` chunks long TXT/SPF content into RFC 1035 §3.3.14 ≤255-byte segments before serialising; this is required to round-trip 2048-bit DKIM keys.
 
 ### Validation (client-side, before hitting API)
 
@@ -704,7 +717,7 @@ Ship in this order. Each phase ends in a tagged release; do not merge to `main` 
 
 ### Phase 3 — RRsets, the hard part (0.4.0)
 
-- `rc0 record add/update/delete/apply/replace-all/clear`.
+- `rc0 record set/append/delete/apply/import/clear`.
 - All three input formats: flags, JSON/YAML file, BIND zone file.
 - Client-side validation.
 - `rc0 record export` in BIND format.
@@ -879,7 +892,7 @@ A release is v1.0.0-ready when **every** box below is ticked.
 - [ ] All non-deprecated endpoints in `rcode0api-v2.json` (v2.9) are exposed as CLI commands.
 - [ ] All deprecated endpoints are exposed, hidden from default help, and emit a `[DEPRECATED]` stderr warning when invoked.
 - [ ] Every mutation command supports `--dry-run` and produces a parseable intended-request record.
-- [ ] Every destructive command (zone delete, record clear, record replace-all, dnssec unsign, tsig delete, messages ack-all) prompts for confirmation unless `-y` is passed.
+- [ ] Every destructive command (zone delete, record clear, record import, dnssec unsign, tsig delete, messages ack-all) prompts for confirmation unless `-y` is passed.
 - [ ] `rc0 --help`, `rc0 <group> --help`, `rc0 <group> <cmd> --help` all render with examples and the underlying API call reference.
 - [ ] `rc0 introspect` emits a stable, documented JSON schema of every command.
 - [ ] `rc0 help <topic>` works for the 9 topics listed in §10.
@@ -928,8 +941,8 @@ $ rc0 zone create example.com --type master
   NSSet: sec1.rcode0.net., sec2.rcode0.net.
   Outbound XFR: 83.136.34.10, 2a02:850:9::8 (port 53)
 
-$ rc0 record add example.com --name www --type A --ttl 3600 --content 10.0.0.1
-✓ RRset added: www.example.com. A 3600 → 10.0.0.1
+$ rc0 record set example.com --name www --type A --ttl 3600 --content 10.0.0.1
+✓ RRset set: www.example.com. A 3600 → 10.0.0.1
 ```
 
 ### Agent-driven zone audit

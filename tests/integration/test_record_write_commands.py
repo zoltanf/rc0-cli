@@ -21,11 +21,11 @@ def cli() -> CliRunner:
     return CliRunner()
 
 
-# -------- record add --------
+# -------- record set --------
 
 
 @respx.mock
-def test_record_add_live(cli: CliRunner, isolated_config: Path) -> None:
+def test_record_set_live(cli: CliRunner, isolated_config: Path) -> None:
     route = respx.patch(
         "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
     ).mock(return_value=httpx.Response(200, json={"status": "ok"}))
@@ -37,7 +37,7 @@ def test_record_add_live(cli: CliRunner, isolated_config: Path) -> None:
             "-o",
             "json",
             "record",
-            "add",
+            "set",
             "example.com",
             "--name",
             "www",
@@ -59,7 +59,7 @@ def test_record_add_live(cli: CliRunner, isolated_config: Path) -> None:
             "name": "www.example.com.",
             "type": "A",
             "ttl": 3600,
-            "changetype": "add",
+            "changetype": "update",
             "records": [
                 {"content": "10.0.0.1", "disabled": False},
                 {"content": "10.0.0.2", "disabled": False},
@@ -68,7 +68,7 @@ def test_record_add_live(cli: CliRunner, isolated_config: Path) -> None:
     ]
 
 
-def test_record_add_dry_run(cli: CliRunner, isolated_config: Path) -> None:
+def test_record_set_dry_run(cli: CliRunner, isolated_config: Path) -> None:
     r = cli.invoke(
         app,
         [
@@ -78,7 +78,7 @@ def test_record_add_dry_run(cli: CliRunner, isolated_config: Path) -> None:
             "json",
             "--dry-run",
             "record",
-            "add",
+            "set",
             "example.com",
             "--name",
             "www",
@@ -92,10 +92,102 @@ def test_record_add_dry_run(cli: CliRunner, isolated_config: Path) -> None:
     parsed = json.loads(r.stdout)
     assert parsed["dry_run"] is True
     assert parsed["request"]["method"] == "PATCH"
-    assert parsed["request"]["body"][0]["changetype"] == "add"
+    assert parsed["request"]["body"][0]["changetype"] == "update"
 
 
-def test_record_add_ttl_below_floor_exits_7(
+@respx.mock
+def test_record_set_require_absent_uses_changetype_add(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    """`--require-absent` maps to the strict `changetype=add` API semantics."""
+    route = respx.patch(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+    ).mock(return_value=httpx.Response(200, json={"status": "ok"}))
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "-o",
+            "json",
+            "record",
+            "set",
+            "example.com",
+            "--name",
+            "www.example.com.",
+            "--type",
+            "A",
+            "--content",
+            "10.0.0.1",
+            "--require-absent",
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    sent = json.loads(route.calls.last.request.content)
+    assert sent[0]["changetype"] == "add"
+
+
+@respx.mock
+def test_record_set_require_exists_uses_changetype_update(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    """`--require-exists` maps to the strict `changetype=update` API semantics."""
+    route = respx.patch(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+    ).mock(return_value=httpx.Response(200, json={"status": "ok"}))
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "-o",
+            "json",
+            "record",
+            "set",
+            "example.com",
+            "--name",
+            "www.example.com.",
+            "--type",
+            "A",
+            "--content",
+            "10.0.0.9",
+            "--require-exists",
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    sent = json.loads(route.calls.last.request.content)
+    assert sent[0]["changetype"] == "update"
+
+
+def test_record_set_conflicting_require_flags_exits_7(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    """`--require-absent` and `--require-exists` cannot be combined."""
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "record",
+            "set",
+            "example.com",
+            "--name",
+            "www",
+            "--type",
+            "A",
+            "--content",
+            "10.0.0.1",
+            "--require-absent",
+            "--require-exists",
+        ],
+    )
+    assert r.exit_code == 7, r.stdout
+
+
+def test_record_set_ttl_below_floor_exits_7(
     cli: CliRunner,
     isolated_config: Path,
 ) -> None:
@@ -105,7 +197,7 @@ def test_record_add_ttl_below_floor_exits_7(
             "--token",
             "tk",
             "record",
-            "add",
+            "set",
             "example.com",
             "--name",
             "www",
@@ -120,7 +212,7 @@ def test_record_add_ttl_below_floor_exits_7(
     assert r.exit_code == 7, r.stdout
 
 
-def test_record_add_bad_ipv4_exits_7(
+def test_record_set_bad_ipv4_exits_7(
     cli: CliRunner,
     isolated_config: Path,
 ) -> None:
@@ -130,7 +222,7 @@ def test_record_add_bad_ipv4_exits_7(
             "--token",
             "tk",
             "record",
-            "add",
+            "set",
             "example.com",
             "--name",
             "www",
@@ -143,12 +235,45 @@ def test_record_add_bad_ipv4_exits_7(
     assert r.exit_code == 7
 
 
-# -------- record update --------
+# -------- record append --------
+
+
+def _envelope(rows: list[dict[str, object]]) -> dict[str, object]:
+    return {
+        "data": rows,
+        "current_page": 1,
+        "last_page": 1,
+        "per_page": 50,
+        "total": len(rows),
+    }
 
 
 @respx.mock
-def test_record_update_live(cli: CliRunner, isolated_config: Path) -> None:
-    route = respx.patch(
+def test_record_append_merges_with_existing(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    """`append` fetches the current rrset and PATCHes the merged record list."""
+    respx.get(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            json=_envelope(
+                [
+                    {
+                        "name": "example.com.",
+                        "type": "TXT",
+                        "ttl": 1800,
+                        "records": [
+                            {"content": '"v=spf1 ~all"', "disabled": False},
+                        ],
+                    },
+                ],
+            ),
+        ),
+    )
+    patch_route = respx.patch(
         "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
     ).mock(return_value=httpx.Response(200, json={"status": "ok"}))
     r = cli.invoke(
@@ -159,20 +284,128 @@ def test_record_update_live(cli: CliRunner, isolated_config: Path) -> None:
             "-o",
             "json",
             "record",
-            "update",
+            "append",
             "example.com",
             "--name",
-            "www.example.com.",
+            "@",
             "--type",
-            "A",
+            "TXT",
             "--content",
-            "10.0.0.9",
+            '"google-site-verification=xyz"',
         ],
     )
     assert r.exit_code == 0, r.stdout
-    sent = json.loads(route.calls.last.request.content)
+    sent = json.loads(patch_route.calls.last.request.content)
     assert sent[0]["changetype"] == "update"
-    assert sent[0]["records"] == [{"content": "10.0.0.9", "disabled": False}]
+    # Existing TTL is preserved when --ttl is omitted.
+    assert sent[0]["ttl"] == 1800
+    contents = [rec["content"] for rec in sent[0]["records"]]
+    assert contents == ['"v=spf1 ~all"', '"google-site-verification=xyz"']
+
+
+@respx.mock
+def test_record_append_creates_when_missing(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    """When no rrset exists yet, `append` creates one via changetype=add."""
+    respx.get(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+    ).mock(return_value=httpx.Response(200, json=_envelope([])))
+    patch_route = respx.patch(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+    ).mock(return_value=httpx.Response(200, json={"status": "ok"}))
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "-o",
+            "json",
+            "record",
+            "append",
+            "example.com",
+            "--name",
+            "_acme-challenge",
+            "--type",
+            "TXT",
+            "--content",
+            '"abc123"',
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    sent = json.loads(patch_route.calls.last.request.content)
+    assert sent[0]["changetype"] == "add"
+    assert sent[0]["name"] == "_acme-challenge.example.com."
+    assert sent[0]["records"] == [{"content": '"abc123"', "disabled": False}]
+
+
+@respx.mock
+def test_record_append_dedupes_existing_content(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    """If every --content is already present, no PATCH is sent."""
+    respx.get(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+    ).mock(
+        return_value=httpx.Response(
+            200,
+            json=_envelope(
+                [
+                    {
+                        "name": "www.example.com.",
+                        "type": "A",
+                        "ttl": 300,
+                        "records": [{"content": "10.0.0.1", "disabled": False}],
+                    },
+                ],
+            ),
+        ),
+    )
+    patch_route = respx.patch(
+        "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
+    ).mock(return_value=httpx.Response(200, json={"status": "ok"}))
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "record",
+            "append",
+            "example.com",
+            "--name",
+            "www",
+            "--type",
+            "A",
+            "--content",
+            "10.0.0.1",
+        ],
+    )
+    assert r.exit_code == 0, r.stdout
+    assert not patch_route.called
+    assert "No new records to append" in r.stdout
+
+
+def test_record_append_requires_content(
+    cli: CliRunner,
+    isolated_config: Path,
+) -> None:
+    r = cli.invoke(
+        app,
+        [
+            "--token",
+            "tk",
+            "record",
+            "append",
+            "example.com",
+            "--name",
+            "www",
+            "--type",
+            "A",
+        ],
+    )
+    assert r.exit_code == 7, r.stdout
 
 
 # -------- record delete --------
@@ -408,7 +641,7 @@ def test_record_apply_dry_run(
     assert len(parsed["request"]["body"]) == 2
 
 
-# -------- record replace-all --------
+# -------- record import --------
 
 
 def _write_replacement_yaml(path: Path) -> None:
@@ -440,7 +673,7 @@ def _write_zone_file(path: Path) -> None:
 
 
 @respx.mock
-def test_record_replace_all_from_file(
+def test_record_import_from_file(
     cli: CliRunner,
     isolated_config: Path,
     tmp_path: Path,
@@ -458,7 +691,7 @@ def test_record_replace_all_from_file(
             "-o",
             "json",
             "record",
-            "replace-all",
+            "import",
             "example.com",
             "--from-file",
             str(src),
@@ -472,7 +705,7 @@ def test_record_replace_all_from_file(
 
 
 @respx.mock
-def test_record_replace_all_from_zonefile(
+def test_record_import_from_zonefile(
     cli: CliRunner,
     isolated_config: Path,
     tmp_path: Path,
@@ -491,7 +724,7 @@ def test_record_replace_all_from_zonefile(
             "-o",
             "json",
             "record",
-            "replace-all",
+            "import",
             "example.com",
             "--zone-file",
             str(src),
@@ -504,18 +737,18 @@ def test_record_replace_all_from_zonefile(
     assert "SOA" in types and "NS" in types and "A" in types
 
 
-def test_record_replace_all_requires_one_source(
+def test_record_import_requires_one_source(
     cli: CliRunner,
     isolated_config: Path,
 ) -> None:
     r = cli.invoke(
         app,
-        ["--token", "tk", "record", "replace-all", "example.com"],
+        ["--token", "tk", "record", "import", "example.com"],
     )
     assert r.exit_code == 7
 
 
-def test_record_replace_all_rejects_both_sources(
+def test_record_import_rejects_both_sources(
     cli: CliRunner,
     isolated_config: Path,
     tmp_path: Path,
@@ -532,7 +765,7 @@ def test_record_replace_all_rejects_both_sources(
             "--token",
             "tk",
             "record",
-            "replace-all",
+            "import",
             "example.com",
             "--from-file",
             str(yaml_src),

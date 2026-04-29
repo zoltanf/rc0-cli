@@ -333,20 +333,36 @@ def test_record_export_bind_with_long_dkim(cli: CliRunner, isolated_config: Path
     assert "google._domainkey" in r.stdout
 
 
-def test_record_add_help_warns_about_replacement(cli: CliRunner) -> None:
-    """`record add --help` must clarify that the command sets the full RRset."""
-    r = cli.invoke(app, ["record", "add", "--help"])
+def test_record_set_help_documents_upsert_semantics(cli: CliRunner) -> None:
+    """`record set --help` must spell out the upsert and pre-existence flags."""
+    r = cli.invoke(app, ["record", "set", "--help"])
     assert r.exit_code == 0
-    assert "fails if one already exists" in r.stdout
-    assert "atomic" in r.stdout
+    assert "upsert" in r.stdout.lower()
+    assert "--require-absent" in r.stdout
+    assert "--require-exists" in r.stdout
 
 
-def test_record_update_help_explains_preserve_pattern(cli: CliRunner) -> None:
-    """`record update --help` must tell users to pass existing --content to preserve them."""
-    r = cli.invoke(app, ["record", "update", "--help"])
+def test_record_append_help_documents_merge(cli: CliRunner) -> None:
+    """`record append --help` must mention fetch+merge and the race caveat."""
+    r = cli.invoke(app, ["record", "append", "--help"])
     assert r.exit_code == 0
-    assert "fails if no RRset exists" in r.stdout
-    assert "pass them again" in r.stdout
+    assert "without losing" in r.stdout
+    assert "last writer wins" in r.stdout
+
+
+def test_record_import_help_present(cli: CliRunner) -> None:
+    """`record import --help` must describe full-zone replacement."""
+    r = cli.invoke(app, ["record", "import", "--help"])
+    assert r.exit_code == 0
+    assert "Replace every RRset" in r.stdout
+    assert "--zone-file" in r.stdout
+
+
+def test_record_old_verbs_are_gone(cli: CliRunner) -> None:
+    """`add`, `update`, `replace-all` must no longer be registered Typer commands."""
+    for verb in ("add", "update", "replace-all"):
+        r = cli.invoke(app, ["record", verb, "--help"])
+        assert r.exit_code != 0, f"`record {verb}` is unexpectedly still registered"
 
 
 @respx.mock

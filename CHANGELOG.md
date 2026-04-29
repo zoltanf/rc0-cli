@@ -20,12 +20,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and MX records during audits.
 
 ### Changed
-- `record add` and `record update` help text now spells out that both
-  commands replace the full RRset atomically and clarifies the
-  pre-existence rule that distinguishes them (`add` rejects when the RRset
-  already exists; `update` rejects when it doesn't). The shared `--content`
-  help also notes that values together replace the RRset, so existing
-  records must be repeated to preserve them.
+- **BREAKING:** `record add`, `record update`, and `record replace-all`
+  have been removed and replaced with three clearer verbs:
+  - `record set` — create-or-replace an RRset (upsert by default).
+    Pass `--require-absent` for the strict `add` semantics
+    (refuse if the RRset already exists) or `--require-exists` for the
+    strict `update` semantics (refuse if it does not).
+  - `record append` — fetches the current RRset, merges new `--content`
+    values (deduplicated), and writes the merged set back. The safe
+    non-destructive verb for SPF includes, extra MX hosts, additional
+    TXT verification tokens, etc. Creates the RRset if it does not exist.
+    Last-writer-wins on concurrent edits.
+  - `record import` — replaces every RRset in a zone (was `record
+    replace-all`). Same `--from-file` / `--zone-file` flags.
+
+  Scripts using `rc0 record add … `, `rc0 record update … `, or
+  `rc0 record replace-all … ` must be updated. There is no compatibility
+  alias.
 
 ## [1.1.0] — 2026-04-24
 

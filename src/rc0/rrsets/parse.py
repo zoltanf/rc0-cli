@@ -181,7 +181,7 @@ def from_zonefile(path: Path, *, zone: str) -> list[RRsetInput]:
     """Parse a BIND zone file into a list of :class:`RRsetInput` (PUT body rows).
 
     Rendered via ``dnspython``; the caller feeds the result into
-    ``rc0 record replace-all``. ``$ORIGIN`` is forced to ``zone`` so a zone
+    ``rc0 record import``. ``$ORIGIN`` is forced to ``zone`` so a zone
     file that already declares a different origin gets rewritten to the
     command's target.
     """

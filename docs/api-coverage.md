@@ -55,8 +55,8 @@ Generated from pinned OpenAPI spec v2.9.
 | ✅ | `DELETE` | `/api/v2/zones/{zone}/outbound` | `rc0 zone xfr-out unset` |  |
 | ✅ | `POST` | `/api/v2/zones/{zone}/retrieve` | `rc0 zone retrieve` |  |
 | ✅ | `GET` | `/api/v2/zones/{zone}/rrsets` | `rc0 record list` |  |
-| ✅ | `PUT` | `/api/v2/zones/{zone}/rrsets` | `rc0 record replace-all` |  |
-| ✅ | `PATCH` | `/api/v2/zones/{zone}/rrsets` | `rc0 record add / update / delete / apply` |  |
+| ✅ | `PUT` | `/api/v2/zones/{zone}/rrsets` | `rc0 record import` |  |
+| ✅ | `PATCH` | `/api/v2/zones/{zone}/rrsets` | `rc0 record set / append / delete / apply` |  |
 | ✅ | `DELETE` | `/api/v2/zones/{zone}/rrsets` | `rc0 record clear` |  |
 | ✅ | `POST` | `/api/v2/zones/{zone}/sign` | `rc0 dnssec sign` |  |
 | ✅ | `POST` | `/api/v2/zones/{zone}/simulate/dsremoved` | `rc0 dnssec simulate dsremoved` |  |

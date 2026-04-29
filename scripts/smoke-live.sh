@@ -508,9 +508,9 @@ capture --dry-run -o json zone create "$TEST_DOMAIN"
 assert_no_crash "dry-run zone create" && assert_exit 0 "dry-run zone create" && \
     { green "dry-run zone create — printed request, no API call"; show_output; (( PASS++ )) || true; }
 
-capture --dry-run -o json record add "$TEST_DOMAIN" --name www --type A --content 10.0.0.1
-assert_no_crash "dry-run record add" && assert_exit 0 "dry-run record add" && \
-    { green "dry-run record add"; show_output; (( PASS++ )) || true; }
+capture --dry-run -o json record set "$TEST_DOMAIN" --name www --type A --content 10.0.0.1
+assert_no_crash "dry-run record set" && assert_exit 0 "dry-run record set" && \
+    { green "dry-run record set"; show_output; (( PASS++ )) || true; }
 
 capture --dry-run -o json zone delete "$TEST_DOMAIN"
 assert_no_crash "dry-run zone delete" && assert_exit 0 "dry-run zone delete" && \
@@ -542,9 +542,9 @@ assert_ok "zone show ${TEST_DOMAIN}"
 capture -o json zone status "$TEST_DOMAIN"
 assert_ok "zone status ${TEST_DOMAIN}"
 
-section "11. record add — one rrset per common RR type"
+section "11. record set — one rrset per common RR type"
 
-declare -a ADD_CASES=(
+declare -a SET_CASES=(
     "--name @        --type A     --ttl 3600 --content 10.0.0.1 --content 10.0.0.2"
     "--name @        --type AAAA  --ttl 3600 --content 2001:db8::1"
     "--name www      --type A     --ttl 300  --content 10.0.0.10"
@@ -555,11 +555,11 @@ declare -a ADD_CASES=(
     "--name _sip._tcp --type SRV  --ttl 3600 --content '10 5 5060 sip.${TEST_DOMAIN}.'"
     "--name @        --type CAA   --ttl 3600 --content '0 issue \"letsencrypt.org\"'"
 )
-for case in "${ADD_CASES[@]}"; do
-    eval "capture -y -o json record add \"$TEST_DOMAIN\" $case"
-    desc="record add ${case:0:60}..."
+for case in "${SET_CASES[@]}"; do
+    eval "capture -y -o json record set \"$TEST_DOMAIN\" $case"
+    desc="record set ${case:0:60}..."
     assert_no_crash "$desc" && assert_exit 0 "$desc" && {
-        green "record add: $case"
+        green "record set: $case"
         (( PASS++ )) || true
     }
 done
@@ -596,16 +596,16 @@ for needle in "www.${TEST_DOMAIN}." "api.${TEST_DOMAIN}." "_dmarc.${TEST_DOMAIN}
     fi
 done
 
-section "13. record update / delete"
+section "13. record set (replace) / append / delete"
 
-capture -y -o json record update "$TEST_DOMAIN" --name www --type A --ttl 60 --content 10.0.0.99
-assert_no_crash "record update www A" && assert_exit 0 "record update www A" && {
-    green "record update www A"
+capture -y -o json record set "$TEST_DOMAIN" --name www --type A --ttl 60 --content 10.0.0.99 --require-exists
+assert_no_crash "record set --require-exists www A" && assert_exit 0 "record set --require-exists www A" && {
+    green "record set --require-exists www A"
     show_output
     (( PASS++ )) || true
 }
 
-# Verify update took effect
+# Verify replace took effect
 capture -o json record list "$TEST_DOMAIN"
 if echo "$OUT" | python3 -c "
 import sys, json
@@ -617,10 +617,38 @@ for r in rrsets:
         sys.exit(0)
 sys.exit(1)
 " 2>/dev/null; then
-    green "record update reflected in list (10.0.0.99 present)"
+    green "record set reflected in list (10.0.0.99 present)"
     (( PASS++ )) || true
 else
-    red "record update not reflected"
+    red "record set not reflected"
+    show_output
+    (( FAIL++ )) || true
+fi
+
+capture -y -o json record append "$TEST_DOMAIN" --name www --type A --content 10.0.0.100
+assert_no_crash "record append www A" && assert_exit 0 "record append www A" && {
+    green "record append www A"
+    show_output
+    (( PASS++ )) || true
+}
+
+# Verify append preserved 10.0.0.99 AND added 10.0.0.100
+capture -o json record list "$TEST_DOMAIN"
+if echo "$OUT" | python3 -c "
+import sys, json
+rrsets = json.load(sys.stdin)
+for r in rrsets:
+    if r.get('name','').startswith('www') and r.get('type') == 'A':
+        records = [x.get('content') for x in r.get('records', [])]
+        assert '10.0.0.99' in records, f'expected 10.0.0.99 preserved, got {records}'
+        assert '10.0.0.100' in records, f'expected 10.0.0.100 appended, got {records}'
+        sys.exit(0)
+sys.exit(1)
+" 2>/dev/null; then
+    green "record append preserved existing record and added the new one"
+    (( PASS++ )) || true
+else
+    red "record append did not behave as expected"
     show_output
     (( FAIL++ )) || true
 fi
@@ -671,7 +699,7 @@ for needle in "batch1.${TEST_DOMAIN}." "batch2.${TEST_DOMAIN}."; do
     fi
 done
 
-section "15. record replace-all — BIND zone file"
+section "15. record import — BIND zone file"
 
 BIND_FILE="$WORK_DIR/replace.zone"
 cat > "$BIND_FILE" <<EOF
@@ -684,20 +712,20 @@ cat > "$BIND_FILE" <<EOF
 www IN A   203.0.113.43
 EOF
 
-capture -y -o json record replace-all "$TEST_DOMAIN" --zone-file "$BIND_FILE"
-assert_no_crash "record replace-all" && assert_exit 0 "record replace-all" && {
-    green "record replace-all (BIND zone file)"
+capture -y -o json record import "$TEST_DOMAIN" --zone-file "$BIND_FILE"
+assert_no_crash "record import" && assert_exit 0 "record import" && {
+    green "record import (BIND zone file)"
     show_output
     (( PASS++ )) || true
 }
 
-# After replace-all, batch/_dmarc etc. should be gone
+# After import, batch/_dmarc etc. should be gone
 capture -o json record list "$TEST_DOMAIN"
 if echo "$OUT" | grep -qF "\"batch1.${TEST_DOMAIN}.\""; then
-    red "replace-all: batch1 still present — zone not replaced"
+    red "import: batch1 still present — zone not replaced"
     (( FAIL++ )) || true
 else
-    green "replace-all: batch1 gone (replacement worked)"
+    green "import: batch1 gone (replacement worked)"
     (( PASS++ )) || true
 fi
 

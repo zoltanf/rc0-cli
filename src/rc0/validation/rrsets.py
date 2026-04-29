@@ -138,7 +138,7 @@ def validate_changes(changes: list[RRsetChange]) -> None:
     if len(changes) > PATCH_MAX_RRSETS:
         raise ValidationError(
             f"A single PATCH may carry at most {PATCH_MAX_RRSETS} rrsets (got {len(changes)}).",
-            hint="Split the batch, or use `rc0 record replace-all` which allows "
+            hint="Split the batch, or use `rc0 record import` which allows "
             f"up to {PUT_MAX_RRSETS} rrsets in one PUT.",
         )
     for change in changes:

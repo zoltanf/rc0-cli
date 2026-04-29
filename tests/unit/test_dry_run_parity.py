@@ -193,7 +193,7 @@ PARITY_CASES: list[tuple[str, str, list[str], int, Any]] = [
         "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
         [
             "record",
-            "add",
+            "set",
             "example.com",
             "--name",
             "www.example.com.",
@@ -201,6 +201,7 @@ PARITY_CASES: list[tuple[str, str, list[str], int, Any]] = [
             "A",
             "--content",
             "10.0.0.1",
+            "--require-absent",
         ],
         200,
         {"status": "ok"},
@@ -210,7 +211,7 @@ PARITY_CASES: list[tuple[str, str, list[str], int, Any]] = [
         "https://my.rcodezero.at/api/v2/zones/example.com/rrsets",
         [
             "record",
-            "update",
+            "set",
             "example.com",
             "--name",
             "www.example.com.",
@@ -366,7 +367,7 @@ def test_dry_run_parity_record_apply(
 
 
 @respx.mock
-def test_dry_run_parity_record_replace_all(
+def test_dry_run_parity_record_import(
     cli: CliRunner,
     isolated_config: Path,
     replacement_yaml_path: Path,
@@ -374,7 +375,7 @@ def test_dry_run_parity_record_replace_all(
     args = [
         "-y",
         "record",
-        "replace-all",
+        "import",
         "example.com",
         "--from-file",
         str(replacement_yaml_path),

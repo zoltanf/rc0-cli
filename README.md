@@ -32,8 +32,11 @@ rc0 zone list
 # 3. Preview a zone creation without touching the API
 rc0 zone create example.com --type master --dry-run
 
-# 4. Add an A record (prompts for confirmation)
-rc0 record add example.com --name www --type A --value 198.51.100.1 --ttl 300
+# 4. Set (create or replace) an A record
+rc0 record set example.com --name www --type A --content 198.51.100.1 --ttl 300
+
+# 4b. Add another value without losing existing records
+rc0 record append example.com --name www --type A --content 198.51.100.2
 
 # 5. Sign a zone with DNSSEC
 rc0 dnssec sign example.com --dry-run

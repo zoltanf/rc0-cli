@@ -20,10 +20,24 @@ rc0 zone delete <domain>               # prompts confirmation; use -y to skip
 ## Records
 
 ```bash
-rc0 record add <zone> --name <name> --type <type> --content <value>
-# --name @ for apex; repeat --content for multiple values in one RRset
+rc0 record set <zone> --name <name> --type <type> --content <value>
+# Default = upsert: works whether the RRset exists or not.
+# Add --require-absent to refuse when one already exists (strict create).
+# Add --require-exists to refuse when none exists (strict replace).
+# --name @ for apex; repeat --content for multiple values in one RRset.
 # MX content format: "10 mail.example.com."  (priority + FQDN with trailing dot)
 # ALIAS content must differ from the zone apex itself
+
+rc0 record append <zone> --name <name> --type <type> --content <value>
+# Non-destructive: fetches the current RRset, dedupes, writes the merged set.
+# Use this for SPF includes, extra MX hosts, additional TXT verification tokens.
+
+rc0 record delete <zone> --name <name> --type <type>
+# Prompts y/N. Pass -y to skip.
+
+rc0 record import <zone> --zone-file <bind-file>
+# Full zone replacement. Anything not in the input disappears.
+# Prompts for typed-zone confirmation. Pass -y to skip.
 ```
 
 ## Stats & Reports
@@ -43,5 +57,5 @@ rc0 report queryrates                         # per-zone query rates
 
 ## Safety
 
-- Always confirm with the user before `zone delete` or `record add` without `--append` on an apex TXT (overwrites the whole RRset).
+- Always confirm with the user before `zone delete`, `record import`, `record clear`, or any `record set` on an apex TXT/SPF/MX (a bare `record set` replaces the entire RRset). When the goal is to keep existing records, prefer `record append`.
 - Use `--dry-run` to preview any mutation without executing.

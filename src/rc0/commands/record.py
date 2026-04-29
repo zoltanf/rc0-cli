@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated
+from typing import TYPE_CHECKING, Annotated, Literal
 
 import typer
 from pydantic import ValidationError as PydanticValidationError
@@ -206,7 +206,7 @@ ZoneFileOpt = Annotated[
     Path | None,
     typer.Option(
         "--zone-file",
-        help="Path to a BIND zone file (only for `record replace-all`).",
+        help="Path to a BIND zone file (only for `record import`).",
     ),
 ]
 
@@ -221,8 +221,8 @@ def _warn(state: AppState) -> Callable[[str], None]:
     return _emit
 
 
-@app.command("add")
-def add_cmd(
+@app.command("set")
+def set_cmd(
     ctx: typer.Context,
     zone: ZoneArg,
     name: NameOpt,
@@ -230,95 +230,174 @@ def add_cmd(
     contents: ContentOpt = None,
     ttl: TtlOpt = 3600,
     disabled: DisabledOpt = False,
+    require_absent: Annotated[
+        bool,
+        typer.Option(
+            "--require-absent",
+            help="Refuse if an RRset already exists at this name+type (strict create-only).",
+        ),
+    ] = False,
+    require_exists: Annotated[
+        bool,
+        typer.Option(
+            "--require-exists",
+            help="Refuse if no RRset exists at this name+type (strict replace-only).",
+        ),
+    ] = False,
 ) -> None:
-    """Add a single RRset (fails if one already exists at this name+type).
+    """Create or replace a single RRset (upsert).
 
-    API: PATCH /api/v2/zones/{zone}/rrsets (changetype=add)
+    API: PATCH /api/v2/zones/{zone}/rrsets
 
-    Sets the full record list for this name+type — the API treats an RRset as
-    one atomic unit. To grow an existing RRset (e.g. add another TXT to the
-    same label) or to wipe-and-replace it, use `record update` and pass every
-    desired --content value, including the ones you want to preserve.
+    Sets the full record list for this name+type — the API treats an RRset
+    as one atomic unit. By default works whether or not an RRset already
+    exists. Use --require-absent to refuse if it does, or --require-exists
+    to refuse if it does not.
+
+    To grow an existing RRset without losing the current records, use
+    `record append` instead.
 
     Examples:
 
-      rc0 record add example.com --name www --type A --content 10.0.0.1
-      rc0 record add example.com --name mail --type MX --content '10 mail.example.com.'
-      rc0 record add example.com --name www --type A --content 10.0.0.1 --content 10.0.0.2
-      rc0 --dry-run -o json record add example.com --name www --type A --content 10.0.0.1
+      rc0 record set example.com --name www --type A --content 10.0.0.1
+      rc0 record set example.com --name @ --type TXT --content '"v=spf1 -all"'
+      rc0 record set example.com --name www --type A --content 10.0.0.1 --content 10.0.0.2
+      rc0 record set example.com --name www --type A --content 10.0.0.1 --require-absent
+      rc0 --dry-run -o json record set example.com --name www --type A --content 10.0.0.1
     """
     state: AppState = ctx.obj
+    if require_absent and require_exists:
+        raise ValidationError(
+            "--require-absent and --require-exists are mutually exclusive.",
+            hint="Pick one — they describe opposite preconditions.",
+        )
+    changetype: Literal["add", "update"] = "add" if require_absent else "update"
     change = rrsets_parse.from_flags(
         name=name,
         type_=type_,
         ttl=ttl,
         contents=list(contents or []),
         disabled=disabled,
-        changetype="add",
+        changetype=changetype,
         zone=zone,
         verbose=state.verbose,
         warn=_warn(state),
     )
     rrsets_validate.validate_changes([change])
+    summary_verb = "create" if require_absent else "set"
     with _client(state) as client:
         result = rrsets_write_api.patch_rrsets(
             client,
             zone=zone,
             changes=[change],
             dry_run=state.dry_run,
-            summary=f"Would add {change.type} rrset {change.name} "
+            summary=f"Would {summary_verb} {change.type} rrset {change.name} "
             f"({len(change.records)} record(s)).",
-            side_effects=["creates_rrset"],
+            side_effects=["sets_rrset"],
         )
     _render_mutation(result, state)
 
 
-@app.command("update")
-def update_cmd(
+@app.command("append")
+def append_cmd(
     ctx: typer.Context,
     zone: ZoneArg,
     name: NameOpt,
     type_: TypeOpt,
     contents: ContentOpt = None,
-    ttl: TtlOpt = 3600,
+    ttl: Annotated[
+        int | None,
+        typer.Option(
+            "--ttl",
+            min=1,
+            help="TTL in seconds (≥ 60). Defaults to the existing RRset's TTL "
+            "when present, otherwise 3600.",
+        ),
+    ] = None,
     disabled: DisabledOpt = False,
 ) -> None:
-    """Replace an RRset's records (fails if no RRset exists at this name+type).
+    """Add records to an RRset without losing the existing ones.
 
-    API: PATCH /api/v2/zones/{zone}/rrsets (changetype=update)
+    API: GET /api/v2/zones/{zone}/rrsets (read), then
+         PATCH /api/v2/zones/{zone}/rrsets (write)
 
-    Sets the full record list for this name+type, replacing atomically. To
-    preserve existing records you must pass them again as additional --content
-    values; anything not in --content is removed. Use `record add` instead
-    when no RRset exists yet.
+    Fetches the current RRset, merges in the new --content values
+    (deduplicated by content string), and PATCHes the merged set back. If
+    the RRset does not exist yet it is created. Use this for SPF includes,
+    extra MX hosts, additional TXT verification tokens — anywhere you want
+    to grow an RRset rather than replace it.
+
+    Caveats:
+      - Two writers racing can drop each other's changes (last writer wins).
+      - --ttl, when omitted, preserves the existing TTL.
 
     Examples:
 
-      rc0 record update example.com --name www --type A --content 10.0.0.1 --ttl 300
-      rc0 record update example.com --name www --type A --content 10.0.0.1 --dry-run
+      rc0 record append example.com --name @ --type TXT \\
+                                    --content '"google-site-verification=xyz"'
+      rc0 record append example.com --name @ --type MX \\
+                                    --content '20 backup-mail.example.com.'
     """
     state: AppState = ctx.obj
-    change = rrsets_parse.from_flags(
-        name=name,
-        type_=type_,
-        ttl=ttl,
-        contents=list(contents or []),
-        disabled=disabled,
-        changetype="update",
-        zone=zone,
-        verbose=state.verbose,
-        warn=_warn(state),
-    )
-    rrsets_validate.validate_changes([change])
+    new_contents = list(contents or [])
+    if not new_contents:
+        raise ValidationError(
+            "`record append` requires at least one --content.",
+            hint="Pass the new record(s) you want to add via --content.",
+        )
+    qualified_name, rewritten = rrsets_validate.qualify_name(name, zone=zone)
+    if rewritten and state.verbose >= 1:
+        _warn(state)(f"auto-qualified --name {name!r} → {qualified_name!r}")
     with _client(state) as client:
+        existing_list = rrsets_api.list_rrsets(
+            client,
+            zone,
+            name=qualified_name,
+            type=type_,
+            fetch_all=True,
+        )
+        existing_rrset = next(iter(existing_list), None)
+        existing_contents: list[str] = []
+        existing_ttl: int | None = None
+        if existing_rrset is not None:
+            existing_contents = [r.content for r in existing_rrset.records if not r.disabled]
+            existing_ttl = existing_rrset.ttl
+        merged: list[str] = list(existing_contents)
+        appended: list[str] = []
+        for c in new_contents:
+            if c not in merged:
+                merged.append(c)
+                appended.append(c)
+        if not appended:
+            typer.echo(
+                "No new records to append — every --content value is already "
+                "present at this name+type.",
+            )
+            return
+        effective_ttl = ttl if ttl is not None else (existing_ttl or 3600)
+        changetype: Literal["add", "update"] = "update" if existing_rrset is not None else "add"
+        change = rrsets_parse.from_flags(
+            name=name,
+            type_=type_,
+            ttl=effective_ttl,
+            contents=merged,
+            disabled=disabled,
+            changetype=changetype,
+            zone=zone,
+            verbose=state.verbose,
+            warn=_warn(state),
+        )
+        rrsets_validate.validate_changes([change])
         result = rrsets_write_api.patch_rrsets(
             client,
             zone=zone,
             changes=[change],
             dry_run=state.dry_run,
-            summary=f"Would replace records on {change.type} rrset {change.name} "
-            f"(to {len(change.records)} record(s)).",
-            side_effects=["updates_rrset"],
+            summary=(
+                f"Would append {len(appended)} record(s) to {change.type} rrset "
+                f"{change.name} (now {len(change.records)} total)."
+            ),
+            side_effects=["appends_rrset"],
         )
     _render_mutation(result, state)
 
@@ -416,14 +495,14 @@ def apply_cmd(
     _render_mutation(result, state)
 
 
-@app.command("replace-all")
-def replace_all_cmd(
+@app.command("import")
+def import_cmd(
     ctx: typer.Context,
     zone: ZoneArg,
     from_file: FromFileOpt = None,
     zone_file: ZoneFileOpt = None,
 ) -> None:
-    """Full zone replacement (zone-transfer semantics).
+    """Replace every RRset in a zone (zone-transfer semantics).
 
     API: PUT /api/v2/zones/{zone}/rrsets
 
@@ -434,11 +513,16 @@ def replace_all_cmd(
 
     Replaces every rrset in the zone. This is destructive: anything not in the
     input disappears. Prompts for typed-zone confirmation by default.
+
+    Examples:
+
+      rc0 record import example.com --zone-file db.example.com
+      rc0 record import example.com --from-file rrsets.yaml
     """
     state: AppState = ctx.obj
     if (from_file is None) == (zone_file is None):
         raise ValidationError(
-            "`record replace-all` needs exactly one of --from-file or --zone-file.",
+            "`record import` needs exactly one of --from-file or --zone-file.",
             hint="JSON/YAML for API-shape input; BIND for zone-file input.",
         )
     if from_file is not None:
@@ -542,7 +626,7 @@ def _load_rrsets_from_file(
                 + "; ".join(
                     f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" for e in exc.errors()
                 ),
-                hint="`record replace-all --from-file` expects rows without "
+                hint="`record import --from-file` expects rows without "
                 "`changetype` — each row is the desired final state.",
             ) from exc
     return out

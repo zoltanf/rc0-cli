@@ -17,8 +17,8 @@ width or colour support.
 # List all zones as JSON
 rc0 -o json zone list --all
 
-# Add a record and capture the result
-rc0 -o json record add example.com --name www --type A --ttl 3600 --content 10.0.0.1
+# Set (create or replace) a record and capture the result
+rc0 -o json record set example.com --name www --type A --ttl 3600 --content 10.0.0.1
 ```
 
 ## Exit codes
