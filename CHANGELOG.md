@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.0] — 2026-04-30
+
 ### Added
 - Commands that take `--name` / `--type` / `--content` style flags now
   emit a `hint:` line with the correct invocation when invoked with
