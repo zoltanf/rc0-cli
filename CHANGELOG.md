@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Commands that take `--name` / `--type` / `--content` style flags now
+  emit a `hint:` line with the correct invocation when invoked with
+  positional values (e.g. `rc0 record set example.com www A 1.2.3.4`).
+  Closes the long-standing v1.0.7 polish item where Typer's generic
+  "Missing option" error left users without a path forward.
+
 ## [2.0.1] — 2026-04-29
 
 ### Fixed

@@ -293,17 +293,71 @@ def _no_color_env() -> bool:
 # ---------------------------------------------------------------- entrypoint
 
 
-def main() -> None:
-    """CLI entry point registered in ``pyproject.toml`` as ``rc0``."""
+_USAGE_HINT_TRIGGERS = (
+    "Missing option",
+    "Missing argument",
+    "Got unexpected extra argument",
+)
+
+
+def _format_usage_hint(exc: click.UsageError) -> str | None:
+    """Return a hint listing the command's required flags, or None.
+
+    Triggers when Click reports a missing option/argument or unexpected
+    extra positional argument and the command has at least one required
+    Option. Lists the canonical flag names so the correct invocation is
+    one paste away.
+    """
+    ctx = exc.ctx
+    if ctx is None:
+        return None
+    msg = exc.format_message() or ""
+    if not any(trigger in msg for trigger in _USAGE_HINT_TRIGGERS):
+        return None
+    required = [
+        param for param in ctx.command.params if isinstance(param, click.Option) and param.required
+    ]
+    if not required:
+        return None
+    flags = " ".join(f"{opt.opts[0]} {_placeholder(opt)}" for opt in required)
+    return f"hint:  this command takes flags. Try: {ctx.command_path} {flags}"
+
+
+def _placeholder(opt: click.Option) -> str:
+    """Derive a metavar-style placeholder from the canonical flag name."""
+    if opt.metavar:
+        return opt.metavar
+    return opt.opts[0].lstrip("-").replace("-", "_").upper()
+
+
+def _run(argv: list[str]) -> int:
+    """Inner entry point — separated so tests can drive it without subprocess."""
     try:
-        app(args=_hoist_global_flags(sys.argv[1:]))
+        app(args=_hoist_global_flags(argv), prog_name="rc0", standalone_mode=False)
+    except click.exceptions.Exit as exc:
+        return exc.exit_code
+    except click.UsageError as exc:
+        exc.show()
+        hint = _format_usage_hint(exc)
+        if hint:
+            typer.echo(hint, err=True)
+        return 2
     except ConfirmationDeclined as exc:
         typer.echo(f"error: {exc}", err=True)
-        raise typer.Exit(code=exc.exit_code) from exc
+        return exc.exit_code
     except Rc0Error as exc:
         typer.echo(f"error: {exc.message}", err=True)
         if exc.hint:
             typer.echo(f"hint:  {exc.hint}", err=True)
-        raise typer.Exit(code=exc.exit_code) from exc
+        return exc.exit_code
+    except click.ClickException as exc:
+        exc.show()
+        return exc.exit_code
     except KeyboardInterrupt:
-        raise typer.Exit(code=130) from None
+        return 130
+    return 0
+
+
+def main() -> None:
+    """CLI entry point registered in ``pyproject.toml`` as ``rc0``."""
+    sys.exit(_run(sys.argv[1:]))
