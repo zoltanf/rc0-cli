@@ -10,7 +10,7 @@ import pytest
 import respx
 from typer.testing import CliRunner
 
-from rc0.app import app
+from rc0.app import _run, app
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -845,3 +845,54 @@ def test_record_clear_dry_run(cli: CliRunner, isolated_config: Path) -> None:
     parsed = json.loads(r.stdout)
     assert parsed["dry_run"] is True
     assert parsed["request"]["method"] == "DELETE"
+
+
+# -------- usage hint (feedback #6) --------
+
+
+def test_record_set_extra_positional_emits_hint(
+    capsys: pytest.CaptureFixture[str],
+    isolated_config: Path,
+) -> None:
+    rc = _run(["record", "set", "example.com", "www", "A", "1.2.3.4"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "Got unexpected extra argument" in captured.err or "Missing option" in captured.err
+    assert "hint:  this command takes flags" in captured.err
+    assert "rc0 record set" in captured.err
+    assert "--name NAME" in captured.err
+    assert "--type TYPE" in captured.err
+
+
+def test_record_set_missing_options_emits_hint(
+    capsys: pytest.CaptureFixture[str],
+    isolated_config: Path,
+) -> None:
+    rc = _run(["record", "set", "example.com"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "Missing option" in captured.err
+    assert "hint:  this command takes flags" in captured.err
+    assert "--name NAME" in captured.err
+
+
+def test_unknown_option_does_not_emit_hint(
+    capsys: pytest.CaptureFixture[str],
+    isolated_config: Path,
+) -> None:
+    rc = _run(["record", "set", "example.com", "--bogus-flag"])
+    captured = capsys.readouterr()
+    assert rc == 2
+    assert "hint:  this command takes flags" not in captured.err
+
+
+def test_run_returns_zero_on_version(
+    capsys: pytest.CaptureFixture[str],
+    isolated_config: Path,
+) -> None:
+    # `--version` callback raises typer.Exit(0); _run must surface that as exit 0
+    # — guards against the standalone_mode=False refactor swallowing the eager exit.
+    rc = _run(["--version"])
+    captured = capsys.readouterr()
+    assert rc == 0
+    assert "rc0" in captured.out
