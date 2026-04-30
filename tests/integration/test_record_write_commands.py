@@ -10,7 +10,7 @@ import pytest
 import respx
 from typer.testing import CliRunner
 
-from rc0.app import app
+from rc0.app import _run, app
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -854,14 +854,9 @@ def test_record_set_extra_positional_emits_hint(
     capsys: pytest.CaptureFixture[str],
     isolated_config: Path,
 ) -> None:
-    """`rc0 record set zone www A 1.2.3.4` (positional) should produce the hint."""
-    from rc0.app import _run
-
     rc = _run(["record", "set", "example.com", "www", "A", "1.2.3.4"])
     captured = capsys.readouterr()
     assert rc == 2
-    # Click checks required options before extra positionals — either trigger
-    # is acceptable here; the point is that the hint fires for *both* shapes.
     assert "Got unexpected extra argument" in captured.err or "Missing option" in captured.err
     assert "hint:  this command takes flags" in captured.err
     assert "rc0 record set" in captured.err
@@ -873,9 +868,6 @@ def test_record_set_missing_options_emits_hint(
     capsys: pytest.CaptureFixture[str],
     isolated_config: Path,
 ) -> None:
-    """`rc0 record set example.com` (no flags) should also produce the hint."""
-    from rc0.app import _run
-
     rc = _run(["record", "set", "example.com"])
     captured = capsys.readouterr()
     assert rc == 2
@@ -888,9 +880,6 @@ def test_unknown_option_does_not_emit_hint(
     capsys: pytest.CaptureFixture[str],
     isolated_config: Path,
 ) -> None:
-    """An unrelated UsageError (unknown flag) should not produce our hint."""
-    from rc0.app import _run
-
     rc = _run(["record", "set", "example.com", "--bogus-flag"])
     captured = capsys.readouterr()
     assert rc == 2
@@ -901,9 +890,8 @@ def test_run_returns_zero_on_version(
     capsys: pytest.CaptureFixture[str],
     isolated_config: Path,
 ) -> None:
-    """`--version` callback raises typer.Exit(0); _run must surface that as exit 0."""
-    from rc0.app import _run
-
+    # `--version` callback raises typer.Exit(0); _run must surface that as exit 0
+    # — guards against the standalone_mode=False refactor swallowing the eager exit.
     rc = _run(["--version"])
     captured = capsys.readouterr()
     assert rc == 0
