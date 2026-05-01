@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.1] — 2026-05-01
+
 ### Changed
 - CI: bumped `actions/checkout` to v6, `actions/github-script` to v9,
   `actions/upload-artifact` to v7, `actions/download-artifact` to v8,
