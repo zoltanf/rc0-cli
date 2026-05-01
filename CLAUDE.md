@@ -9,12 +9,10 @@ This directory hosts **`rc0`** (PyPI `rc0-cli`), a production-grade Python
 - **[docs/rc0-cli-mission-plan.md](docs/rc0-cli-mission-plan.md)** — the
   design doc. 22 sections covering command tree, global flags, dry-run
   contract, config/auth, output formats, exit codes, rrset data formats,
-  testing strategy, packaging, and the 7-phase release ladder.
-  **Read the relevant section before touching any code** — this CLAUDE.md
-  is a pointer, not a substitute.
-- **`~/.claude/plans/let-s-make-this-happen-ancient-naur.md`** — the
-  meta-plan that carves the mission plan into phases and records tactical
-  decisions.
+  testing strategy, packaging, and the 7-phase release ladder. Now a
+  reference document, not a roadmap — every phase shipped. Still the
+  authority on command shape and conventions; **read the relevant
+  section before touching any code**.
 
 ## Settled tactical decisions
 
@@ -31,34 +29,23 @@ This directory hosts **`rc0`** (PyPI `rc0-cli`), a production-grade Python
 | Binary builder | PyInstaller for now; re-evaluate vs Nuitka in Phase 6 |
 | Spec-drift job | Nightly; Phase 7 deliverable (§18.5) |
 
-## Phase status
+## Release status
 
-| Phase | Tag | Status |
-|---|---|---|
-| 0 Bootstrap | v0.1.0 | **Done** (2026-04-21). Project skeleton, auth, config, HTTP client, output formatters, topic help. |
-| 1 Read-only | v0.2.0 | **Done** (2026-04-21). Every non-deprecated v2 GET reachable as a CLI command; `rc0 introspect`; auto-paginator speaks both envelope and bare-array shapes; contract test gates the release. |
-| 2 Mutations with dry-run | v0.3.0 | **Done** (2026-04-22). Every non-RRset mutation ships with `--dry-run`; destructive commands prompt for confirmation (typed for zones, y/N for tsig + ack-all); `tests/unit/test_dry_run_parity.py` gates the release. |
-| 3 RRsets | v0.4.0 | **Done** (2026-04-22). Full RRset CRUD surface: add/update/delete/apply/replace-all/clear with flag, JSON/YAML, and BIND zone-file inputs; client-side validation (§12); dry-run parity extended; `rrset-format` topic. |
-| 4 DNSSEC | v0.5.0 | **Done** (2026-04-22). sign/unsign/keyrollover/ack-ds with dry-run parity; simulate sub-group (test-env gated); `dnssec-workflow` topic. |
-| 5 ACME | v0.6.0 | Pending — next up. |
-| 6 Packaging & distribution | v0.9.0 | Pending. |
-| 7 v1.0.0 polish | v1.0.0 | Pending. |
+All seven mission-plan phases shipped (v0.1.0 → v1.0.0). The project is
+post-v1.0; ongoing work is patch/minor releases driven by user feedback
+and small UX polish, not phased delivery. See `CHANGELOG.md` for what
+each version added.
 
 ## Working conventions
 
-- One feature branch per phase (`phase-N-<slug>`). Merge to `main` via PR.
-  Annotated tag at the end of each phase.
+- Feature work goes on a topic branch and merges to `main` via PR.
 - No merge without green CI (mission plan §14).
 - Every PR updates `CHANGELOG.md` (Keep-a-Changelog format) — add entries
   under the existing `## [Unreleased]` block only.
 - **Releases go through `scripts/release.sh <version>`.** Fix/feature PRs
   must NOT bump `pyproject.toml`, `src/rc0/__init__.py`, or add a dated
   `## [X.Y.Z] — YYYY-MM-DD` heading — the script handles all three, plus
-  the commit, tag, and push that triggers the release workflow. (v1.0.4
-  through v1.0.7 drifted from this; corrected going forward.)
-- Each phase gets its own detailed implementation plan via
-  `superpowers:writing-plans` — do **not** treat the meta-plan as the
-  execution plan.
+  the commit, tag, and push that triggers the release workflow.
 
 ## Local verification (run before every commit)
 
@@ -70,8 +57,8 @@ uv run pytest
 ```
 
 Coverage target per mission plan §15: 90% line / 85% branch. Current
-`fail_under` gate is 86 (Phase-3 floor; actual coverage ~86.9% on
-macOS/Linux). Tighten the gate further as each phase lands real code.
+`fail_under` gate is 88 (per `pyproject.toml`); actual coverage on
+`main` is ~91%.
 
 ## Security reminders (mission plan §17)
 

@@ -847,7 +847,7 @@ def test_record_clear_dry_run(cli: CliRunner, isolated_config: Path) -> None:
     assert parsed["request"]["method"] == "DELETE"
 
 
-# -------- usage hint (feedback #6) --------
+# -------- usage hint --------
 
 
 def test_record_set_extra_positional_emits_hint(
