@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- CI: bumped `actions/checkout` to v6, `actions/github-script` to v9,
+  `actions/upload-artifact` to v7, `actions/download-artifact` to v8,
+  and `softprops/action-gh-release` to v3. No behavioural changes for
+  rc0 users; the artifact-action pair was upgraded together so the
+  release workflow stays internally consistent under v8 download's
+  default-error-on-hash-mismatch.
+
 ## [2.1.0] — 2026-04-30
 
 ### Added
