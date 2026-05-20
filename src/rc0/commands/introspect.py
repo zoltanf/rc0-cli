@@ -14,7 +14,12 @@ import rc0
 def _walk(command: click.Command, path: list[str]) -> list[dict[str, Any]]:
     if isinstance(command, click.Group):
         out: list[dict[str, Any]] = []
-        for name, sub in command.commands.items():
+        # Use list_commands/get_command (not .commands) so lazily-registered
+        # subcommands in rc0.app.LazyTyperGroup are also materialised.
+        for name in command.list_commands(ctx=None):  # type: ignore[arg-type]
+            sub = command.get_command(ctx=None, cmd_name=name)  # type: ignore[arg-type]
+            if sub is None:
+                continue
             out.extend(_walk(sub, [*path, name]))
         return out
     args: list[dict[str, Any]] = []

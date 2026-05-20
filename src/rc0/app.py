@@ -5,6 +5,7 @@ Follows mission plan §6 for global flag names and precedence rules.
 
 from __future__ import annotations
 
+import importlib
 import logging
 import os
 import platform
@@ -14,26 +15,109 @@ from typing import Annotated
 
 import click
 import typer
+from typer.core import TyperGroup
 
 import rc0
 from rc0.app_state import AppState
 from rc0.client.errors import ConfirmationDeclined, Rc0Error
-from rc0.commands import acme as acme_cmd
-from rc0.commands import auth as auth_cmd
-from rc0.commands import config as config_cmd
-from rc0.commands import dnssec as dnssec_cmd
-from rc0.commands import help as help_cmd
 from rc0.commands import introspect as introspect_cmd
-from rc0.commands import messages as messages_cmd
-from rc0.commands import record as record_cmd
-from rc0.commands import report as report_cmd
-from rc0.commands import settings as settings_cmd
-from rc0.commands import skill as skill_cmd
-from rc0.commands import stats as stats_cmd
-from rc0.commands import tsig as tsig_cmd
-from rc0.commands import zone as zone_cmd
 from rc0.config import load_profile
 from rc0.output import OutputFormat, render
+
+# Subcommands are resolved on demand to keep cold startup under 200ms in the
+# packaged binary. Each entry maps the user-visible name to the module that
+# defines the Typer subapp plus the short help shown on ``rc0 --help``. The
+# help text mirrors the value previously passed to ``add_typer(help=...)`` so
+# ``rc0 --help`` can be rendered without importing any of these modules.
+_LAZY_SUBCOMMANDS: dict[str, tuple[str, str]] = {
+    "acme": ("rc0.commands.acme", "Manage ACME DNS-01 challenge records."),
+    "auth": ("rc0.commands.auth", "Authenticate with the RcodeZero API."),
+    "config": ("rc0.commands.config", "Read and write rc0 configuration."),
+    "dnssec": ("rc0.commands.dnssec", "Manage DNSSEC for zones."),
+    "help": ("rc0.commands.help", "Long-form topic documentation."),
+    "messages": ("rc0.commands.messages", "Inspect queued account messages."),
+    "record": ("rc0.commands.record", "Manage RRsets."),
+    "report": ("rc0.commands.report", "Account-level reports."),
+    "settings": ("rc0.commands.settings", "Manage account-level settings."),
+    "skill": ("rc0.commands.skill", "Manage the rc0 Claude Code skill."),
+    "stats": ("rc0.commands.stats", "Account statistics."),
+    "tsig": ("rc0.commands.tsig", "Manage TSIG keys."),
+    "zone": ("rc0.commands.zone", "Manage RcodeZero zones."),
+}
+
+
+class _LazyStub(click.Group):
+    """Placeholder group that defers importing its module until needed.
+
+    Rendering ``rc0 --help`` only reads ``name``/``short_help``/``hidden``/
+    ``help`` on each command, which this stub provides eagerly. Anything that
+    actually inspects or invokes the subcommand (descending into it during
+    parsing, listing its nested commands for ``introspect``, asking for its
+    own help) forwards to the real Typer subapp, importing it lazily.
+    """
+
+    def __init__(self, name: str, module_path: str, help_text: str) -> None:
+        super().__init__(name=name, help=help_text, short_help=help_text)
+        self._module_path = module_path
+        self._real: click.Group | None = None
+
+    def _resolve(self) -> click.Group:
+        if self._real is None:
+            module = importlib.import_module(self._module_path)
+            real = typer.main.get_command(module.app)
+            assert isinstance(real, click.Group), f"{self._module_path}.app must be a Typer group"
+            if self.help and not real.help:
+                real.help = self.help
+            self._real = real
+        return self._real
+
+    def list_commands(self, ctx: click.Context) -> list[str]:
+        return self._resolve().list_commands(ctx)
+
+    def get_command(self, ctx: click.Context, cmd_name: str) -> click.Command | None:
+        return self._resolve().get_command(ctx, cmd_name)
+
+    def get_params(self, ctx: click.Context) -> list[click.Parameter]:
+        return self._resolve().get_params(ctx)
+
+    def make_context(
+        self,
+        info_name: str | None,
+        args: list[str],
+        parent: click.Context | None = None,
+        **extra: object,
+    ) -> click.Context:
+        real = self._resolve()
+        assert self.name is not None
+        if parent is not None and isinstance(parent.command, click.Group):
+            parent.command.commands[self.name] = real
+        return real.make_context(info_name, args, parent=parent, **extra)
+
+    def invoke(self, ctx: click.Context) -> object:
+        return self._resolve().invoke(ctx)
+
+    def get_help(self, ctx: click.Context) -> str:
+        return self._resolve().get_help(ctx)
+
+    def get_usage(self, ctx: click.Context) -> str:
+        return self._resolve().get_usage(ctx)
+
+
+class LazyTyperGroup(TyperGroup):
+    """Top-level group that imports each subcommand module on first access.
+
+    ``rc0 --help`` and ``rc0 --version`` should never pay for httpx, pydantic,
+    or rich-formatter import time. The stubs in ``self.commands`` expose
+    enough metadata for Typer's rich help to render without triggering any
+    subcommand import; ``rc0.commands.X`` is imported only when the user
+    actually invokes the matching subcommand.
+    """
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
+        for name, (module_path, help_text) in _LAZY_SUBCOMMANDS.items():
+            self.commands.setdefault(name, _LazyStub(name, module_path, help_text))
+
 
 app = typer.Typer(
     name="rc0",
@@ -41,21 +125,8 @@ app = typer.Typer(
     no_args_is_help=True,
     add_completion=True,
     rich_markup_mode="rich",
+    cls=LazyTyperGroup,
 )
-
-app.add_typer(acme_cmd.app, name="acme", help="Manage ACME DNS-01 challenge records.")
-app.add_typer(auth_cmd.app, name="auth", help="Authenticate with the RcodeZero API.")
-app.add_typer(config_cmd.app, name="config", help="Read and write rc0 configuration.")
-app.add_typer(dnssec_cmd.app, name="dnssec", help="Manage DNSSEC for zones.")
-app.add_typer(help_cmd.app, name="help", help="Long-form topic documentation.")
-app.add_typer(messages_cmd.app, name="messages", help="Inspect queued account messages.")
-app.add_typer(record_cmd.app, name="record", help="Manage RRsets.")
-app.add_typer(report_cmd.app, name="report", help="Account-level reports.")
-app.add_typer(settings_cmd.app, name="settings", help="Manage account-level settings.")
-app.add_typer(skill_cmd.app, name="skill", help="Manage the rc0 Claude Code skill.")
-app.add_typer(stats_cmd.app, name="stats", help="Account statistics.")
-app.add_typer(tsig_cmd.app, name="tsig", help="Manage TSIG keys.")
-app.add_typer(zone_cmd.app, name="zone", help="Manage RcodeZero zones.")
 
 introspect_cmd.register(app)
 

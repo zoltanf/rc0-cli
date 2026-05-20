@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Subcommand modules (`rc0.commands.acme`, `…auth`, `…zone`, etc.) are
+  now imported on demand instead of at startup. The packaged binary's
+  warm cold-start dropped from ~270ms to ~115ms for `rc0 --version` and
+  from ~310ms to ~155ms for `rc0 --help` on Apple Silicon. A new
+  `tests/perf/test_startup.py` (gated by `RC0_PERF=1` and a built
+  binary) enforces a 200ms budget so regressions fail CI. The
+  refactor introduces `LazyTyperGroup` and `_LazyStub` in `rc0.app`;
+  subcommand modules referenced through these stubs are listed under
+  `hiddenimports` in `rc0.spec` so PyInstaller still bundles them.
+
 ## [2.1.2] — 2026-05-20
 
 ### Fixed

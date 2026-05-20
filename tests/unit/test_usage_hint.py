@@ -16,7 +16,8 @@ def _ctx_for(name_path: list[str]) -> click.Context:
     current: click.Command = root
     for name in name_path:
         assert isinstance(current, click.Group)
-        sub = current.commands[name]
+        sub = current.get_command(parent, name)
+        assert sub is not None, f"unknown command in path: {name}"
         parent = click.Context(sub, info_name=name, parent=parent)
         current = sub
     return parent
