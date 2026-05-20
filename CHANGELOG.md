@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.1.2] — 2026-05-20
+
 ### Fixed
 - `rc0 acme zone-exists` now hits `GET /api/v1/acme/zones/{zone}`, the
   current upstream path. RcodeZero moved the endpoint from
