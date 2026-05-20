@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] — 2026-05-20
+
 ### Changed
 - Subcommand modules (`rc0.commands.acme`, `…auth`, `…zone`, etc.) are
   now imported on demand instead of at startup. The packaged binary's
