@@ -18,7 +18,7 @@ OUT_PATH = REPO_ROOT / "docs" / "api-coverage.md"
 # Full endpoint → CLI command mapping (extends contract test map with mutations)
 ENDPOINT_TO_COMMAND: dict[tuple[str, str], tuple[str, ...]] = {
     # ACME (v1)
-    ("GET", "/api/v1/acme/{zone}"): ("acme", "zone-exists"),
+    ("GET", "/api/v1/acme/zones/{zone}"): ("acme", "zone-exists"),
     ("GET", "/api/v1/acme/zones/{zone}/rrsets"): ("acme", "list-challenges"),
     ("PATCH", "/api/v1/acme/zones/{zone}/rrsets"): ("acme", "add-challenge / remove-challenge"),
     # Messages
@@ -73,8 +73,8 @@ ENDPOINT_TO_COMMAND: dict[tuple[str, str], tuple[str, ...]] = {
     ("POST", "/api/v2/zones/{zone}/outbound"): ("zone", "xfr-out", "set"),
     ("DELETE", "/api/v2/zones/{zone}/outbound"): ("zone", "xfr-out", "unset"),
     ("GET", "/api/v2/zones/{zone}/rrsets"): ("record", "list"),
-    ("PATCH", "/api/v2/zones/{zone}/rrsets"): ("record", "add / update / delete / apply"),
-    ("PUT", "/api/v2/zones/{zone}/rrsets"): ("record", "replace-all"),
+    ("PATCH", "/api/v2/zones/{zone}/rrsets"): ("record", "set / append / delete / apply"),
+    ("PUT", "/api/v2/zones/{zone}/rrsets"): ("record", "import"),
     ("DELETE", "/api/v2/zones/{zone}/rrsets"): ("record", "clear"),
     ("POST", "/api/v2/zones/{zone}/retrieve"): ("zone", "retrieve"),
     ("POST", "/api/v2/zones/{zone}/sign"): ("dnssec", "sign"),

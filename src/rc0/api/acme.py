@@ -12,8 +12,8 @@ if TYPE_CHECKING:
 
 
 def zone_exists(client: Client, zone: str) -> list[str]:
-    """GET /api/v1/acme/{zone} — returns ["found"] if configured."""
-    response = client.get(f"/api/v1/acme/{zone}")
+    """GET /api/v1/acme/zones/{zone} — returns ["found"] if configured."""
+    response = client.get(f"/api/v1/acme/zones/{zone}")
     result: list[str] = response.json()
     return result
 

@@ -55,7 +55,7 @@ def _invoke(cli: CliRunner, *args: str, input: str | None = None) -> object:
 
 @respx.mock
 def test_zone_exists_found(cli: CliRunner, isolated_config: Path) -> None:
-    respx.get(f"{_BASE_V1}/{_ZONE}").mock(return_value=httpx.Response(200, json=["found"]))
+    respx.get(f"{_BASE_V1}/zones/{_ZONE}").mock(return_value=httpx.Response(200, json=["found"]))
     r = _invoke(cli, "acme", "zone-exists", _ZONE)
     assert r.exit_code == 0, r.output
     assert json.loads(r.output) == ["found"]
@@ -63,7 +63,7 @@ def test_zone_exists_found(cli: CliRunner, isolated_config: Path) -> None:
 
 @respx.mock
 def test_zone_exists_not_found(cli: CliRunner, isolated_config: Path) -> None:
-    respx.get(f"{_BASE_V1}/{_ZONE}").mock(
+    respx.get(f"{_BASE_V1}/zones/{_ZONE}").mock(
         return_value=httpx.Response(404, json={"message": "not found"})
     )
     r = _invoke(cli, "acme", "zone-exists", _ZONE)

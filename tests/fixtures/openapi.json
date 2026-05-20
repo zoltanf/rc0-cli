@@ -3243,7 +3243,7 @@
         "deprecated": false
       }
     },
-    "/api/v1/acme/{zone}": {
+    "/api/v1/acme/zones/{zone}": {
       "get": {
         "tags": [
           "API: ACME"

@@ -4,9 +4,9 @@ Generated from pinned OpenAPI spec v2.9.
 
 | Status | Method | Endpoint | CLI Command | Notes |
 |--------|--------|----------|-------------|-------|
+| ✅ | `GET` | `/api/v1/acme/zones/{zone}` | `rc0 acme zone-exists` |  |
 | ✅ | `GET` | `/api/v1/acme/zones/{zone}/rrsets` | `rc0 acme list-challenges` |  |
 | ✅ | `PATCH` | `/api/v1/acme/zones/{zone}/rrsets` | `rc0 acme add-challenge / remove-challenge` |  |
-| ✅ | `GET` | `/api/v1/acme/{zone}` | `rc0 acme zone-exists` |  |
 | ✅ | `GET` | `/api/v2/messages` | `rc0 messages poll` |  |
 | ✅ | `GET` | `/api/v2/messages/list` | `rc0 messages list` |  |
 | ✅ | `DELETE` | `/api/v2/messages/{id}` | `rc0 messages ack` |  |
