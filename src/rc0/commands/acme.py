@@ -54,7 +54,7 @@ def _acme_client(state: AppState) -> Generator[Client]:
 
 @app.command("zone-exists")
 def zone_exists_cmd(ctx: typer.Context, zone: ZoneArg) -> None:
-    """Check if a zone is configured for ACME. API: GET /api/v1/acme/{zone}
+    """Check if a zone is configured for ACME. API: GET /api/v1/acme/zones/{zone}
 
     Examples:
 

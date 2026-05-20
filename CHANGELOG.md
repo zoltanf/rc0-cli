@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `rc0 acme zone-exists` now hits `GET /api/v1/acme/zones/{zone}`, the
+  current upstream path. RcodeZero moved the endpoint from
+  `/api/v1/acme/{zone}` to `/api/v1/acme/zones/{zone}` (consistent with
+  the sibling `/zones/{zone}/rrsets`), which broke the command against
+  the live API. Pinned `tests/fixtures/openapi.json` refreshed from the
+  live spec, integration tests rewired to the new path, and the nightly
+  spec-drift workflow is green again. Closes #15.
+- `scripts/gen_api_coverage.py`: corrected stale `rc0 record` verb
+  mapping (`add / update / replace-all` → `set / append / import`) that
+  predated the v1.0 rename, so regenerated `docs/api-coverage.md` no
+  longer regresses to the old names.
+
 ## [2.1.1] — 2026-05-01
 
 ### Changed

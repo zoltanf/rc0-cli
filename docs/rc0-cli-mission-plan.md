@@ -164,7 +164,7 @@ The CLI must expose **all** of the following. Endpoints marked `[DEPRECATED]` ar
 
 | Endpoint | Command |
 |---|---|
-| `/api/v1/acme/{zone}` GET | `rc0 acme zone-exists` |
+| `/api/v1/acme/zones/{zone}` GET | `rc0 acme zone-exists` |
 | `/api/v1/acme/zones/{zone}/rrsets` GET | `rc0 acme list-challenges` |
 | `/api/v1/acme/zones/{zone}/rrsets` PATCH | `rc0 acme add-challenge` / `rc0 acme remove-challenge` |
 
