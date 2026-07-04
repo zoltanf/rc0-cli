@@ -2,9 +2,9 @@
   "openapi": "3.0.0",
   "info": {
     "title": "RcodeZero DNS - REST API",
-    "description": "This is Version 2 of the Rcode0 API. Version 1 (except the ACME calls) is deprecated and will not receive new features anymore\n\nGet the latest specification file [here](/openapi/rcode0api-latest.json)\n\nPlease also read our workflow [documentation](https://www.rcodezero.at/en/support/documentation/workflow) and our [FAQs](https://www.rcodezero.at/en/support/faq)\n\n### Changelog\n| Version | Date | Author | Changes |\n| --------- | :------------- | :------: | -------------- |\n| 2.0 | 2020-05-13 | Michael Braunoeder | Initial Release v2.<br><br>Changes: <ul><li/>`POST /api/v2/zones`: Return assigned NSSet in response<li>New call \"disable zone\" (and return zone state on \"get zone details\" call)<li>New query parameter \"ignoresafetyperiod\" for \"sign zone\" call to get DNSKEY and DS record immediately in the response<li>New query parameter \"dnssec\" for \"add zone\" call to sign a newly added zone immediately and return the DNSKEY and DS record in the response </ul>|\n| 2.1 | 2020-06-08 | Michael Braunoeder | Changes: <ul><li>New call: `/api/v2/zones/{zone}/status` - check if a zone is disabled or not </li><li>New call: `/api/v2/reports/domainlist` - get an unpaginated list of configured domains</li></ul> |\n| 2.2 | 2021-09-13 | Michael Braunoeder | Changes: <ul><li>Added missing attribute 'created' to call: `GET /api/v2/zones/{zone}`</li></ul> |\n| 2.3 | 2021-09-14 | Michael Braunoeder | Changes: <ul><li>`GET /api/v2/zones`: <ul><li>new parameters - filter[...] and orderby[...]</li><li>Response returns problematic_domains flag</li></ul></li><li>/api/v2/reports/domainlist: return serial in response</li><li>Return status of KSK in zone details</li></ul>|\n| 2.4 | 2022-11-02 | Michael Braunoeder | Changes: <ul><li>`GET /api/v2/zones/`: new parameters - orderby[serial]</li></ul>|\n| 2.5 | 2023-05-02 | Michael Braunoeder | Changes: <ul><li>add support for CDS/CDNSKEY</li><li>add `serial_auto_increment` option to zones</li><li>add support for incoming TSIG-keys (+cleanup TSIG-interface)</li><li>New Call: `PUT /api/v2/zones/{zone}/rrsets`: Replace RRSets for zone</li><li>`/api/v2/zones/{zone}/unsign`: add `force` parameter</li><li>Limit `PATCH /api/v2/zones/{zone}/rrsets` to max 1000 rrsets per request</li><li>New call: `GET messages/list`: get a list of messages in the message queue</ul>Deprecated<ul><li>`/api/v2/zones/{zone}/stats/magnitude`</li><li>`/api/v2/zones/{zone}/stats/qnames`</li><li>`/api/v2/zones/{zone}/stats/nxdomains`</li><li>`/api/v2/stats/topqnames`</li><li>`/api/v2/stats/topnxdomains`</li><li>`/api/v2/stats/topmagnitude`</li><li>`/api/v2/tsig/out`</li><li>`/api/v2/tsig/out/{keyname}`</li><li>`/api/v2/settings/tsigout`</li></ul>|\n| 2.6 | 2023-08-31 | Michael Braunoeder | Changes: <ul><li>add `dnssec_zsk` to `GET /api/v2/zones/{zone}` response</li></ul>|\n| 2.7 | 2023-11-15 | Michael Braunoeder | Changes: <ul><li>`GET /api/v2/zones`: `filter[domain]` add special characters `^` and `$` to support \"domain starts/end with\"-searches</ul> |\n| 2.8 | 2025-02-12 | Michael Braunoeder | Changes: <ul><li>`GET /api/v2/stats/topzones`: remove `id` from response </li></ul>|\n| 2.9 | 2025-02-19 | Michael Braunoeder | Changes: <ul><li>`GET api/v2/reports/nxdomains` , `GET api/v2/reports/queryrates`, `GET /api/v2/reports/accounting`: add parameter `type=json` to get results in JSON format</li><li>`GET api/v2/reports/queryrates`: add paramter `include_nx=1`to number of NX queries too</li></ul>|",
+    "description": "This is Version 2 of the Rcode0 API. Version 1 (except the ACME calls) is deprecated and will not receive new features anymore\n\nGet the latest specification file [here](/openapi/rcode0api-latest.json)\n\nPlease also read our workflow [documentation](https://www.rcodezero.at/en/support/documentation/workflow) and our [FAQs](https://www.rcodezero.at/en/support/faq)\n\n### Changelog\n| Version | Date | Author | Changes |\n| --------- | :------------- | :------: | -------------- |\n| 2.0 | 2020-05-13 | Michael Braunoeder | Initial Release v2.<br><br>Changes: <ul><li/>`POST /api/v2/zones`: Return assigned NSSet in response<li>New call \"disable zone\" (and return zone state on \"get zone details\" call)<li>New query parameter \"ignoresafetyperiod\" for \"sign zone\" call to get DNSKEY and DS record immediately in the response<li>New query parameter \"dnssec\" for \"add zone\" call to sign a newly added zone immediately and return the DNSKEY and DS record in the response </ul>|\n| 2.1 | 2020-06-08 | Michael Braunoeder | Changes: <ul><li>New call: `/api/v2/zones/{zone}/status` - check if a zone is disabled or not </li><li>New call: `/api/v2/reports/domainlist` - get an unpaginated list of configured domains</li></ul> |\n| 2.2 | 2021-09-13 | Michael Braunoeder | Changes: <ul><li>Added missing attribute 'created' to call: `GET /api/v2/zones/{zone}`</li></ul> |\n| 2.3 | 2021-09-14 | Michael Braunoeder | Changes: <ul><li>`GET /api/v2/zones`: <ul><li>new parameters - filter[...] and orderby[...]</li><li>Response returns problematic_domains flag</li></ul></li><li>/api/v2/reports/domainlist: return serial in response</li><li>Return status of KSK in zone details</li></ul>|\n| 2.4 | 2022-11-02 | Michael Braunoeder | Changes: <ul><li>`GET /api/v2/zones/`: new parameters - orderby[serial]</li></ul>|\n| 2.5 | 2023-05-02 | Michael Braunoeder | Changes: <ul><li>add support for CDS/CDNSKEY</li><li>add `serial_auto_increment` option to zones</li><li>add support for incoming TSIG-keys (+cleanup TSIG-interface)</li><li>New Call: `PUT /api/v2/zones/{zone}/rrsets`: Replace RRSets for zone</li><li>`/api/v2/zones/{zone}/unsign`: add `force` parameter</li><li>Limit `PATCH /api/v2/zones/{zone}/rrsets` to max 1000 rrsets per request</li><li>New call: `GET messages/list`: get a list of messages in the message queue</ul>Deprecated<ul><li>`/api/v2/zones/{zone}/stats/magnitude`</li><li>`/api/v2/zones/{zone}/stats/qnames`</li><li>`/api/v2/zones/{zone}/stats/nxdomains`</li><li>`/api/v2/stats/topqnames`</li><li>`/api/v2/stats/topnxdomains`</li><li>`/api/v2/stats/topmagnitude`</li><li>`/api/v2/tsig/out`</li><li>`/api/v2/tsig/out/{keyname}`</li><li>`/api/v2/settings/tsigout`</li></ul>|\n| 2.6 | 2023-08-31 | Michael Braunoeder | Changes: <ul><li>add `dnssec_zsk` to `GET /api/v2/zones/{zone}` response</li></ul>|\n| 2.7 | 2023-11-15 | Michael Braunoeder | Changes: <ul><li>`GET /api/v2/zones`: `filter[domain]` add special characters `^` and `$` to support \"domain starts/end with\"-searches</li></ul> |\n| 2.8 | 2025-02-12 | Michael Braunoeder | Changes: <ul><li>`GET /api/v2/stats/topzones`: remove `id` from response </li></ul>|\n| 2.9 | 2025-02-19 | Michael Braunoeder | Changes: <ul><li>`GET /api/v2/reports/nxdomains`, `GET /api/v2/reports/queryrates`, `GET /api/v2/reports/accounting`: add parameter `type=json` to get results in JSON format</li><li>`GET api/v2/reports/queryrates`: add paramter `include_nx=1`to number of NX queries too</li></ul>|\n| 2.10 | 2026-04-22 | Michael Braunoeder | Changes: <ul><li>`GET  /api/v2/zones`, `GET /api/v2/zones/{zone}`:  add `catalog` attribute and `type=CONSUMER/MEMBER` (only available on dedicated systems with enabled support for catalog zones)</li><li>`PUT /api/v2/zones`: add `type=CONSUMER` to provision catalog zones (only available on dedicated systems with enabled support for catalog zones)</li><li>`GET /api/v2/sites`:  add new endpoint to get list of RcodeZero sites</li></ul>|",
     "contact": {},
-    "version": "2.9"
+    "version": "2.10"
   },
   "paths": {
     "/api/v2/zones": {
@@ -62,11 +62,7 @@
             "style": "form",
             "explode": true,
             "schema": {
-                "type": "string",
-                "enum": [
-                    "MASTER",
-                    "SLAVE"
-                ],
+                "$ref": "#/components/schemas/type_with_member",
                 "example": "MASTER"
             }
            },
@@ -325,7 +321,7 @@
           "API: Zone Management"
         ],
         "summary": "Add a zone to RcodeZero",
-        "description": "Adds a new zone (master or slave) to the anycast network.\n\nWhen a master zone is added, a zone skeleton (SOA and NS record sets) is created automatically.\n\nWhen the zone which should be added is already provisioned on RcodeZero (under management by another RcodeZero account), the system will by default rejects the request with a respective error message. To allow the transfer (change of ownership) from one RcodeZero account to another, a transfer code has to be added to the zone (by the zone owner, thus the code should be added before transferring a domain to a new account). The transfer code has to be added as TXT record for the subdomain “rcode0” and has to look like this:\n\n```\nrcode0 IN TXT \"allowed=XXXXXXXXX\" \n```\n\nwhere XXXXXXXXX is the md5-hash of the RcodeZero username of the new account. \nIf the transfer code check was successful, the domain will be switched from one customer to the other, the master server IP(s) will be changed to the new ones, and a zone transfer will be performed.\n\nTransfer code example: In this example the domain to be transferred is “example.com” and the username of the gaining RcodeZero customer is “best-isp.com”:\n\n```\nrcode0.example.com. IN TXT \"allowed=15c0bd9371ff658a5634ae16e7632ca6\"\n```",
+        "description": "Adds a new zone (master, slave or consumer (=catalog zone) (if enabled)) to the anycast network.\n\nWhen a master zone is added, a zone skeleton (SOA and NS record sets) is created automatically.\n\nWhen the zone which should be added is already provisioned on RcodeZero (under management by another RcodeZero account), the system will by default rejects the request with a respective error message. To allow the transfer (change of ownership) from one RcodeZero account to another, a transfer code has to be added to the zone (by the zone owner, thus the code should be added before transferring a domain to a new account). The transfer code has to be added as TXT record for the subdomain “rcode0” and has to look like this:\n\n```\nrcode0 IN TXT \"allowed=XXXXXXXXX\" \n```\n\nwhere XXXXXXXXX is the md5-hash of the RcodeZero username of the new account. \nIf the transfer code check was successful, the domain will be switched from one customer to the other, the master server IP(s) will be changed to the new ones, and a zone transfer will be performed.\n\nTransfer code example: In this example the domain to be transferred is “example.com” and the username of the gaining RcodeZero customer is “best-isp.com”:\n\n```\nrcode0.example.com. IN TXT \"allowed=15c0bd9371ff658a5634ae16e7632ca6\"\n```",
         "operationId": "AddZone",
         "parameters": [
           {
@@ -1046,7 +1042,7 @@
           "API: Zone Management"
         ],
         "summary": "Set outbound zone transfer configuration for a zone",
-        "description": "Outbound Zone transfers can be configured on account or zone level. A specific per zone configuration overrules the account wide configuration (both secondary IPs and TSIG key). The name of the TSIG key must reference to a configured [outgoing TSIG key](##api-tsig-keys)replaces the outbound zone transfer configuration with the provided one. The request must contain a full configuration,  emtpy fields will remove possibly configured values (and the zone configuration will fall back to the default account wide configuration)",
+        "description": "Outbound Zone transfers can be configured on account or zone level. A specific per zone configuration overrules the account wide configuration (both secondary IPs and TSIG key). The name of the TSIG key must reference to a configured [outgoing TSIG key](##api-tsig-keys). Use the \"dummy\" key `no-tsig-key` the disable the default key for the given zone. The request replaces the outbound zone transfer configuration with the provided one. The request must contain a full configuration,  emtpy fields will remove possibly configured values (and the zone configuration will fall back to the default account wide configuration)",
         "operationId": "SetOrUpdateConfiguration",
         "parameters": [
           {
@@ -1183,7 +1179,7 @@
           "API: Zone Management"
         ],
         "summary": "Set inbound zone transfer configuration for a zone",
-        "description": "Inbound Zone transfers can be configured on account or zone level. A specific per zone configuration overrules the account wide configuration. The name of the TSIG key must reference to a configured [outgoing TSIG key](##api-tsig-keys)replaces the outbound zone transfer configuration with the provided one.",
+        "description": "Inbound Zone transfers can be configured on account or zone level. A specific per zone configuration overrules the account wide configuration. The name of the TSIG key must reference to a configured [outgoing TSIG key](##api-tsig-keys). Use the \"dummy\" key `no-tsig-key` the disable the default key for the given zone. The request replaces the inbound zone transfer tsig key with the provided one.",
         "operationId": "SetOrUpdateInboundConfiguration",
         "parameters": [
           {
@@ -3243,6 +3239,56 @@
         "deprecated": false
       }
     },
+    "/api/v2/sites": {
+        "get": {
+          "tags": [
+            "API: Sites"
+          ],
+          "summary": "Get a list of RcodeZero locations",
+          "description": "get a lis of RcodeZero location with details like GPS coordinates",
+          "operationId": "GetSites",
+          "responses": {
+            "200": {
+              "description": "",
+              "headers": {},
+              "content": {
+                "application/json": {
+                  "schema": {
+                    "$ref": "#/components/schemas/GetSites"
+                  },
+                  "example": {
+                    "sites": [
+                      {
+                        "name": "ams",
+                        "city": "Amsterdam",
+                        "countrycode": "NL",
+                        "latitude": 52.3731,
+                        "longitude": 4.8924,
+                        "status": "active",
+                        "clouds": [
+                          "cloud2"
+                        ]
+                      },
+                      {
+                        "name": "amx",
+                        "city": "Amsterdam",
+                        "countrycode": "NL",
+                        "latitude": 52.3731,
+                        "longitude": 4.8924,
+                        "status": "active",
+                        "clouds": [
+                          "cloud1"
+                        ]
+                      }
+                    ]
+                }
+              }
+            }
+          }
+          },
+           "deprecated": false
+        }
+    },
     "/api/v1/acme/zones/{zone}": {
       "get": {
         "tags": [
@@ -3458,7 +3504,7 @@
             "description": "Domain to be added"
           },
           "type": {
-            "$ref": "#/components/schemas/type2"
+            "$ref": "#/components/schemas/type_with_consumer"
           },
           "masters": {
             "type": "array",
@@ -3673,7 +3719,12 @@
             "example": "testzone1.at"
           },
           "type": {
-            "$ref": "#/components/schemas/type"
+            "$ref": "#/components/schemas/type_with_member"
+          },
+          "catalog": {
+            "type": "string",
+            "description": "Name of catalog zone if zone is of type MEMBER. Only available on dedicated systems with catalog zones enabled",
+            "example": "mycatalog.zone"
           },
           "dnssec": {
             "$ref": "#/components/schemas/dnssec"
@@ -3763,7 +3814,12 @@
             "example": "testzone1.at"
           },
           "type": {
-            "$ref": "#/components/schemas/type"
+            "$ref": "#/components/schemas/type_with_member"
+          },
+          "catalog": {
+            "type": "string",
+            "description": "Name of catalog zone if zone is of type MEMBER. Only available on dedicated systems with catalog zones enabled",
+            "example": "mycatalog.zone"
           },
           "masters": {
             "type": "array",
@@ -3915,7 +3971,7 @@
         "type": "object",
         "properties": {
           "type": {
-            "$ref": "#/components/schemas/type2"
+            "$ref": "#/components/schemas/type"
           },
           "masters": {
             "type": "array",
@@ -5865,14 +5921,27 @@
         "description": "type of zone",
         "example": "SLAVE"
       },
-      "type2": {
-        "title": "type2",
+      "type_with_consumer": {
+        "title": "type",
         "enum": [
           "slave",
-          "master"
+          "master",
+          "consumer"
         ],
         "type": "string",
         "example": "slave"
+      },
+      "type_with_member": {
+        "title": "type_with_member",
+        "enum": [
+          "SLAVE",
+          "MASTER",
+          "MEMBER",
+          "CONSUMER"
+        ],
+        "type": "string",
+        "description": "type of zone",
+        "example": "SLAVE"
       },
       "DomainListReportResponse": {
         "title": "DomainListReportResponse",
@@ -6000,6 +6069,102 @@
             "type": "integer"
           }
         }
+      },
+      "GetSites": {
+        "title": "GetSites",
+        "required": [
+          "sites"
+        ],
+        "type": "object",
+        "properties": {
+          "sites": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Site"
+            },
+            "description": "array of site objects"
+          }
+        }
+      },
+      "Site": {
+        "title":"RcodeZeroSite",
+        "required": [
+          "name",
+          "city",
+          "countrycode",
+          "country",
+          "continentcode",
+          "continent",
+          "latitude",
+          "longitude",
+          "status", 
+          "clouds"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "amx",
+            "description": "3 letter short cut of City"
+          },
+          "city": {
+            "type": "string",
+            "example": "Amsterdam",
+            "description": "Full city name"
+          },
+          "countrycode": {
+            "type": "string",
+            "example": "NL",
+            "description": "2 letter country code"
+          },
+          "country": {
+            "type": "string",
+            "example": "Netherlands",
+            "description": "Name of country"
+          },
+          "continentcode": {
+            "type": "string",
+            "example": "EU",
+            "description": "2 letter code for continent"
+          },
+          "continent": {
+            "type": "string",
+            "example": "EUrope",
+            "description": "Full name of continent"
+          },
+          "statecode": {
+            "type": "string",
+            "example": "GA",
+            "description": "(optional) US state code"
+          },
+          "state": {
+            "type": "string",
+            "example": "Georgia",
+            "description": "(optional) full US state name"
+          },
+          "latitude": {
+            "type": "string",
+            "example": 52.3731,
+            "description": "Latitude of city"
+          },
+          "longitude": {
+            "type": "string",
+            "example": 4.8924,
+            "description": "Longitude of city"
+          },
+          "status": {
+            "type": "string",
+            "example": "active",
+            "descripition": "Status of location: active/planned"
+          },
+          "clouds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "assigned clouds for this location: cloud1/cloud2"
+          }
+        }
       }
     },
     "securitySchemes": {
@@ -6049,3 +6214,5 @@
     }
   ]
 }
+
+  

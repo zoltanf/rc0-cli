@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `rc0 sites list` — lists RcodeZero anycast locations (name, city,
+  country, continent, GPS coordinates, status, and assigned clouds) from
+  the new `GET /api/v2/sites` endpoint. Pinned `tests/fixtures/openapi.json`
+  refreshed from the live spec (now v2.10) and `docs/api-coverage.md`
+  regenerated, so the nightly spec-drift workflow is green again.
+  Closes #19.
+
 ## [2.2.0] — 2026-05-20
 
 ### Changed

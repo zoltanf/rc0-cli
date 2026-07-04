@@ -39,6 +39,7 @@ _LAZY_SUBCOMMANDS: dict[str, tuple[str, str]] = {
     "record": ("rc0.commands.record", "Manage RRsets."),
     "report": ("rc0.commands.report", "Account-level reports."),
     "settings": ("rc0.commands.settings", "Manage account-level settings."),
+    "sites": ("rc0.commands.sites", "List RcodeZero anycast locations."),
     "skill": ("rc0.commands.skill", "Manage the rc0 Claude Code skill."),
     "stats": ("rc0.commands.stats", "Account statistics."),
     "tsig": ("rc0.commands.tsig", "Manage TSIG keys."),
