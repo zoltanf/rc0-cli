@@ -1,6 +1,6 @@
 # API Coverage
 
-Generated from pinned OpenAPI spec v2.9.
+Generated from pinned OpenAPI spec v2.10.
 
 | Status | Method | Endpoint | CLI Command | Notes |
 |--------|--------|----------|-------------|-------|
@@ -24,6 +24,7 @@ Generated from pinned OpenAPI spec v2.9.
 | ✅ | `DELETE` | `/api/v2/settings/tsig/out` | `rc0 settings tsig-out unset` |  |
 | ⚠️ | `PUT` | `/api/v2/settings/tsigout` | `[DEPRECATED — no CLI command]` | [DEPRECATED] |
 | ⚠️ | `DELETE` | `/api/v2/settings/tsigout` | `[DEPRECATED — no CLI command]` | [DEPRECATED] |
+| ✅ | `GET` | `/api/v2/sites` | `rc0 sites list` |  |
 | ✅ | `GET` | `/api/v2/stats/countries` | `rc0 stats countries` |  |
 | ✅ | `GET` | `/api/v2/stats/querycounts` | `rc0 stats queries` |  |
 | ✅ | `GET` | `/api/v2/stats/topmagnitude` | `rc0 stats topmagnitude` | [DEPRECATED] |

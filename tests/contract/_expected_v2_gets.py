@@ -13,6 +13,7 @@ V2_GET_TO_COMMAND: dict[str, tuple[str, ...]] = {
     "/api/v2/tsig/{keyname}": ("tsig", "show"),
     "/api/v2/tsig/out": ("tsig", "list-out"),
     "/api/v2/settings": ("settings", "show"),
+    "/api/v2/sites": ("sites", "list"),
     "/api/v2/messages": ("messages", "poll"),
     "/api/v2/messages/list": ("messages", "list"),
     "/api/v2/stats/querycounts": ("stats", "queries"),

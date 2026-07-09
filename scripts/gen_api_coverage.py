@@ -41,6 +41,8 @@ ENDPOINT_TO_COMMAND: dict[tuple[str, str], tuple[str, ...]] = {
     ("DELETE", "/api/v2/settings/tsig/out"): ("settings", "tsig-out", "unset"),
     ("PUT", "/api/v2/settings/tsigout"): ("[DEPRECATED — no CLI command]",),
     ("DELETE", "/api/v2/settings/tsigout"): ("[DEPRECATED — no CLI command]",),
+    # Sites
+    ("GET", "/api/v2/sites"): ("sites", "list"),
     # Stats
     ("GET", "/api/v2/stats/countries"): ("stats", "countries"),
     ("GET", "/api/v2/stats/querycounts"): ("stats", "queries"),
