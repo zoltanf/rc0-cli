@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] — 2026-07-09
+
 ### Added
 - `rc0 sites list` — lists RcodeZero anycast locations (name, city,
   country, continent, GPS coordinates, status, and assigned clouds) from
