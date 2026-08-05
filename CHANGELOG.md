@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.1] — 2026-08-05
+
 ### Fixed
 - A whitespace-only token no longer crashes with a raw httpx
   `LocalProtocolError` traceback. `rc0 auth login` strips the token
