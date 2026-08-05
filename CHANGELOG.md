@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- A whitespace-only token no longer crashes with a raw httpx
+  `LocalProtocolError` traceback. `rc0 auth login` strips the token
+  before its empty check, and `Client` now normalises every token it is
+  given (from `--token`, `RC0_API_TOKEN`, the keyring, or the
+  credentials file): surrounding whitespace is trimmed, and a token that
+  is blank or carries characters illegal in an HTTP header fails as a
+  config error (exit 3) with a hint. Closes #21.
+- `rc0`'s entry point catches any remaining unexpected exception and
+  prints `error: unexpected <Type>: <message>` with a bug-report hint and
+  exit code 1, instead of letting a traceback reach the user. Re-run with
+  `-vv` to see the traceback.
+- The `rc0 auth login` docstring showed `--token`; the option is
+  `--token-value`.
+
 ## [2.3.0] — 2026-07-09
 
 ### Added

@@ -43,13 +43,16 @@ def login(
     Examples:
 
       rc0 auth login
-      rc0 auth login --token "$RC0_API_TOKEN"
+      rc0 auth login --token-value "$RC0_API_TOKEN"
       rc0 --profile staging auth login
     """
     state: AppState = ctx.obj
-    raw_token = token or getpass.getpass("API token: ")
+    raw_token = (token or getpass.getpass("API token: ")).strip()
     if not raw_token:
-        raise ConfigError("No token provided.")
+        raise ConfigError(
+            "No token provided.",
+            hint="Paste the token from my.rcodezero.at, or pass --token-value in scripts.",
+        )
 
     _validate_token(state.effective_api_url, raw_token, timeout=state.effective_timeout)
 
