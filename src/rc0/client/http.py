@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 import httpx
 
 from rc0.client.errors import (
+    ConfigError,
     NetworkError,
     RateLimitError,
     Rc0Error,
@@ -30,6 +31,29 @@ REDACTED = "***REDACTED***"
 RETRYABLE_STATUSES: frozenset[int] = frozenset({429, 502, 503, 504})
 
 log = logging.getLogger("rc0.http")
+
+
+def clean_token(token: str) -> str:
+    """Normalise a token so it can never build an illegal ``Authorization`` header.
+
+    Surrounding whitespace (a stray newline from a copy/paste, say) is
+    harmless and stripped. Anything left that is not printable ASCII —
+    an embedded space, a control character, a smart quote — would make
+    httpcore reject the header, so it is turned into a ConfigError here
+    rather than surfacing as a raw protocol traceback.
+    """
+    cleaned = token.strip()
+    if not cleaned:
+        raise ConfigError(
+            "API token is empty.",
+            hint="Run `rc0 auth login` or set RC0_API_TOKEN to a real token.",
+        )
+    if any(not ("\x21" <= ch <= "\x7e") for ch in cleaned):
+        raise ConfigError(
+            "API token contains characters that are not valid in an HTTP header.",
+            hint="Tokens are printable ASCII with no spaces — re-copy it from my.rcodezero.at.",
+        )
+    return cleaned
 
 
 @dataclass
@@ -62,6 +86,8 @@ class Client:
     _client: httpx.Client = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        if self.token is not None:
+            self.token = clean_token(self.token)
         self._client = httpx.Client(
             base_url=self.api_url,
             timeout=self.timeout,

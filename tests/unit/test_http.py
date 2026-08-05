@@ -6,7 +6,14 @@ import httpx
 import pytest
 import respx
 
-from rc0.client.errors import AuthError, AuthzError, ConflictError, NetworkError, NotFoundError
+from rc0.client.errors import (
+    AuthError,
+    AuthzError,
+    ConfigError,
+    ConflictError,
+    NetworkError,
+    NotFoundError,
+)
 from rc0.client.http import REDACTED, Client
 
 
@@ -82,3 +89,26 @@ def test_post_does_not_retry() -> None:
         with pytest.raises(ServerError):
             c.post("/api/v2/zones", json={"domain": "example.com"})
     assert route.call_count == 1
+
+
+@pytest.mark.parametrize("raw", ["  tk  ", "tk\n", "\ttk"])
+def test_client_strips_surrounding_whitespace_from_token(raw: str) -> None:
+    with Client(api_url="https://api.test", token=raw) as c:
+        assert c.token == "tk"
+
+
+@pytest.mark.parametrize("raw", [" ", "", "\n", "\t\t"])
+def test_blank_token_raises_config_error(raw: str) -> None:
+    with pytest.raises(ConfigError, match="empty"):
+        Client(api_url="https://api.test", token=raw)
+
+
+@pytest.mark.parametrize("raw", ["tk with space", "tk\nvalue", "tk\x00", "tökén"])
+def test_token_with_illegal_header_characters_raises_config_error(raw: str) -> None:
+    with pytest.raises(ConfigError, match="not valid in an HTTP header"):
+        Client(api_url="https://api.test", token=raw)
+
+
+def test_client_without_token_builds_no_auth_header() -> None:
+    with Client(api_url="https://api.test") as c:
+        assert c._auth_headers() == {}

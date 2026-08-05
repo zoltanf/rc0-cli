@@ -24,6 +24,8 @@ from rc0.commands import introspect as introspect_cmd
 from rc0.config import load_profile
 from rc0.output import OutputFormat, render
 
+log = logging.getLogger("rc0.app")
+
 # Subcommands are resolved on demand to keep cold startup under 200ms in the
 # packaged binary. Each entry maps the user-visible name to the module that
 # defines the Typer subapp plus the short help shown on ``rc0 --help``. The
@@ -427,6 +429,15 @@ def _run(argv: list[str]) -> int:
         return exc.exit_code
     except KeyboardInterrupt:
         return 130
+    except Exception as exc:  # last resort: never print a raw traceback at the user
+        log.debug("unhandled exception", exc_info=exc)
+        typer.echo(f"error: unexpected {type(exc).__name__}: {exc}", err=True)
+        typer.echo(
+            "hint:  this is a bug — please report it at "
+            "https://github.com/zoltanf/rc0-cli/issues (re-run with -vv for a traceback).",
+            err=True,
+        )
+        return 1
     return 0
 
 
