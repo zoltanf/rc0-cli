@@ -19,7 +19,7 @@ class Zone(Rc0Model):
     dnssec_ds_first_seen: str | None = None
     dnssec_ds_last_seen: str | None = None
     dnssec_ds_last_check: str | None = None
-    dnssec_ds_last_ttl: str | None = None
+    dnssec_ds_last_ttl: int | str | None = None
     created: str | None = None
     last_check: str | None = None
     serial: int | None = None

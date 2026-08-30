@@ -13,8 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   spec-drift workflow is green again. v2.11 adds the DS-rollover fields
   `dnssec_ds_last_seen`, `dnssec_ds_last_check`, and `dnssec_ds_last_ttl`
   to `GET /api/v2/zones/{zone}`; `Zone` now models these explicitly
-  (alongside `dnssec_ds_first_seen`), so they surface in
-  `rc0 zone show` output. Closes #23.
+  (alongside `dnssec_ds_first_seen`), giving them validation and stable
+  field ordering in `rc0 zone show` output. `dnssec_ds_last_ttl` accepts
+  both string and integer values, as the live runtime type is not yet
+  confirmed. Closes #23.
 
 ## [2.3.1] — 2026-08-05
 

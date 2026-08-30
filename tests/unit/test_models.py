@@ -28,6 +28,10 @@ def test_zone_parses_full_payload() -> None:
             "domain": "testzone144.at",
             "type": "SLAVE",
             "dnssec": "no",
+            "dnssec_ds_first_seen": "2023-04-04T07:10:03Z",
+            "dnssec_ds_last_seen": "2023-04-04T07:10:03Z",
+            "dnssec_ds_last_check": "2023-04-04T07:10:03Z",
+            "dnssec_ds_last_ttl": 3600,
             "serial": 2026042100,
             "masters": ["10.0.0.1"],
             "nsset": ["ns1.example.com."],
@@ -40,6 +44,7 @@ def test_zone_parses_full_payload() -> None:
     assert z.serial == 2026042100
     assert z.masters == ["10.0.0.1"]
     assert z.outbound_xfr_host == {"ips": ["1.2.3.4"], "port": 53}
+    assert z.dnssec_ds_last_ttl == 3600
 
 
 def test_zone_type_accepts_any_string() -> None:
