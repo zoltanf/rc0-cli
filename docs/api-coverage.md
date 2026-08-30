@@ -1,6 +1,6 @@
 # API Coverage
 
-Generated from pinned OpenAPI spec v2.10.
+Generated from pinned OpenAPI spec v2.11.
 
 | Status | Method | Endpoint | CLI Command | Notes |
 |--------|--------|----------|-------------|-------|
